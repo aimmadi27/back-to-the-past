@@ -1,0 +1,13 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Update Specs After Task Completion",
+      "trigger": "PostTaskExec",
+      "action": {
+        "type": "agent",
+        "prompt": "A spec task was just completed. Review the changes made during this task and update the spec files in .kiro/specs/phase-1-time-travel/ to reflect the current state of the project:\n\n1. In tasks.md: mark the completed task checkbox as [x] if not already, and add any new sub-tasks that were discovered or completed.\n2. In requirements.md: add or update any requirements that were introduced, changed, or clarified during this task.\n3. In design.md: update architecture diagrams, data flows, component designs, API contracts, or file maps if anything changed.\n\nKeep the spec accurate and complete — it is used for hackathon grading. Do not add placeholder or speculative content; only document what is actually built."
+      }
+    }
+  ]
+}
