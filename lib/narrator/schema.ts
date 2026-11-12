@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { validateDomain } from "@/lib/validation/domain";
+import { MAX_STRING, MAX_ARRAY } from "@/lib/diff/caps";
 
-/** Max lengths to prevent prompt injection / credit drain */
-const MAX_STRING = 200;
-const MAX_ARRAY = 20;
+/** Re-export so callers can reference the same constants. */
+export { MAX_STRING, MAX_ARRAY };
 
 const cappedString = z.string().max(MAX_STRING);
 const cappedStringArray = z.array(cappedString).max(MAX_ARRAY);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import type { Snapshot } from "@/lib/wayback/cdx";
 import type { FeatureDiff } from "@/lib/diff/diff-features";
@@ -32,13 +32,19 @@ export default function TimeTravelView({ domain, snapshots }: TimeTravelViewProp
   const [compareIndex, setCompareIndex] = useState<number | null>(null);
   const [activeDiff, setActiveDiff] = useState<FeatureDiff | null>(null);
 
-  // Debounce: update pending immediately (shows year label), commit after 250ms
+  // Debounce: update pending immediately (shows year label), commit after 250ms.
+  // When committed index advances in compare mode, also clear the stale diff so
+  // the narrator re-narrates — done here in the event handler, not an effect.
   const handleIndexChange = useCallback(
     (index: number) => {
       setPendingIndex(index);
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         setCommittedIndex((prev) => {
+          if (prev !== index) {
+            // Year changed while in compare mode — diff is now stale
+            setActiveDiff(null);
+          }
           setPrevIndex(prev);
           return index;
         });
@@ -53,28 +59,13 @@ export default function TimeTravelView({ domain, snapshots }: TimeTravelViewProp
     setActiveDiff(null);
   }, []);
 
-  // Also clear activeDiff when the current year changes in compare mode
-  useEffect(() => {
-    if (compareIndex !== null) {
-      setActiveDiff(null);
-    }
-  }, [committedIndex, compareIndex]);
-
-  // Cleanup debounce on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
-
   const currentSnapshot = snapshots[committedIndex];
   const compareSnapshot = compareIndex !== null ? snapshots[compareIndex] : null;
 
-  // Determine which indexes to actually mount (current + previous only)
+  // Determine which indexes to actually mount (current + previous + adjacent only)
   const mountedIndexes = new Set<number>();
   mountedIndexes.add(committedIndex);
   if (prevIndex !== null) mountedIndexes.add(prevIndex);
-  // Prefetch adjacent years (at most 2 extra requests)
   if (committedIndex > 0) mountedIndexes.add(committedIndex - 1);
   if (committedIndex < snapshots.length - 1) mountedIndexes.add(committedIndex + 1);
 
@@ -182,7 +173,6 @@ export default function TimeTravelView({ domain, snapshots }: TimeTravelViewProp
 }
 
 function formatTimestamp(ts: string): string {
-  // 14-digit timestamp: YYYYMMDDHHmmss
   const month = ts.slice(4, 6);
   const day = ts.slice(6, 8);
   const year = ts.slice(0, 4);

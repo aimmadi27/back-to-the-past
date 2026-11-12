@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { diff, domain } = parsed.data;
-  const modelId = process.env.NARRATOR_MODEL ?? "claude-haiku-4-5";
+  const modelId = process.env.NARRATOR_MODEL ?? "claude-haiku-5-5";
   const prompt = buildNarratorPrompt(diff, domain);
 
   const result = streamText({

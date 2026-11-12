@@ -1,14 +1,32 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { CURATED_EXAMPLES } from "@/lib/curated-examples";
+import { validateDomain } from "@/lib/validation/domain";
+import { InvalidDomainError } from "@/lib/errors";
 
-async function handleSearch(formData: FormData) {
+async function handleSearch(
+  _prevState: { error: string | null },
+  formData: FormData
+): Promise<{ error: string | null }> {
   "use server";
-  const domain = (formData.get("domain") as string)?.trim();
-  if (domain) {
+  const raw = (formData.get("domain") as string)?.trim() ?? "";
+
+  try {
+    const domain = validateDomain(raw);
     redirect(`/${encodeURIComponent(domain)}`);
+  } catch (err) {
+    if (err instanceof InvalidDomainError) {
+      return { error: err.message };
+    }
+    throw err; // redirect throws internally — let Next.js handle it
   }
+
+  // Unreachable, but satisfies the return type
+  return { error: null };
 }
+
+// Thin wrapper so we can use useFormState without making the whole page "use client"
+import LandingForm from "./LandingForm";
 
 export default function LandingPage() {
   return (
@@ -25,37 +43,7 @@ export default function LandingPage() {
         </p>
       </header>
 
-      {/* Search form */}
-      <section className="w-full max-w-md space-y-4" aria-label="Domain search">
-        <form action={handleSearch} className="flex gap-2">
-          <label htmlFor="domain-input" className="sr-only">
-            Enter a domain name
-          </label>
-          <input
-            id="domain-input"
-            name="domain"
-            type="text"
-            placeholder="example.com"
-            autoComplete="off"
-            spellCheck={false}
-            required
-            className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-bone placeholder-gray-600
-                       focus:outline-none focus:border-pumpkin focus:ring-1 focus:ring-pumpkin transition-colors"
-            aria-describedby="domain-hint"
-          />
-          <button
-            type="submit"
-            className="bg-pumpkin-500 hover:bg-pumpkin-600 text-white font-semibold px-5 py-3 rounded-lg
-                       transition-colors focus:outline-none focus:ring-2 focus:ring-pumpkin focus:ring-offset-2
-                       focus:ring-offset-gray-950"
-          >
-            Travel
-          </button>
-        </form>
-        <p id="domain-hint" className="text-xs text-gray-600 text-center">
-          Hostname only — no https://, no paths. e.g. <code className="text-gray-500">bbc.co.uk</code>
-        </p>
-      </section>
+      <LandingForm handleSearch={handleSearch} />
 
       {/* Curated examples */}
       <section className="text-center space-y-4" aria-label="Curated examples">

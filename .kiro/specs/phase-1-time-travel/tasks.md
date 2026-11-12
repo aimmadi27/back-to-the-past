@@ -21,7 +21,7 @@ All tasks in this spec are **completed**. This file documents what was built and
 - [x] `lib/errors.ts` — `InvalidDomainError`, `InvalidTimestampError`, `NoSnapshotsError`, `ArchiveUnavailableError`, `SnapshotNotFoundError`
 - [x] `errorToStatus()` — maps each class to an HTTP status code
 - [x] `errorToJson()` — safe serialisation for API responses
-- [x] `lib/errors.test.ts` — tests for each class, `errorToStatus`, `errorToJson`
+- [x] `lib/errors.test.ts` — 13 tests for each class, `errorToStatus`, `errorToJson`
 
 ---
 
@@ -35,7 +35,9 @@ All tasks in this spec are **completed**. This file documents what was built and
 ## 4. Wayback CDX Client ✅
 
 - [x] `lib/wayback/cdx.ts` — `fetchYearlySnapshots()` with 45s timeout, Next.js fetch cache (`revalidate: 3600`), and in-memory Map cache (1h TTL)
+- [x] `_clearCacheForTest()` exported for test isolation
 - [x] `snapshotHtmlUrl()` and `assetUrl()` helper functions
+- [x] `lib/wayback/cdx.test.ts` — 8 tests: success (sorted + years parsed), header-only → `NoSnapshotsError`, empty array → `NoSnapshotsError`, non-200 → `ArchiveUnavailableError`, malformed JSON → `ArchiveUnavailableError`, network error → `ArchiveUnavailableError`, cache hit (fetch called once for two calls)
 - [x] `lib/curated-examples.ts` — shared `CURATED_EXAMPLES` constant used by landing page and warm script
 
 ---
@@ -43,6 +45,7 @@ All tasks in this spec are **completed**. This file documents what was built and
 ## 5. Snapshot Fetcher ✅
 
 - [x] `lib/wayback/fetch-snapshot.ts` — `fetchSnapshotHtml()` with 15s timeout, 1-year immutable cache, typed errors for 404 and non-200
+- [x] `lib/wayback/fetch-snapshot.test.ts` — 6 tests: 200 returns HTML, 404 → `SnapshotNotFoundError`, 5xx → `ArchiveUnavailableError`, network error → `ArchiveUnavailableError`, AbortError → `ArchiveUnavailableError`, error message includes domain
 
 ---
 
@@ -61,65 +64,74 @@ All tasks in this spec are **completed**. This file documents what was built and
 
 ---
 
-## 8. Feature Extraction + Diff ✅
+## 8. Shared Caps Module ✅
 
-- [x] `lib/diff/extract-features.ts` — `extractFeatures()` returning `PageFeatures`; tech detection from concrete signals only (no body-text matching)
-- [x] `lib/diff/extract-features.test.ts` — 18 tests covering each tech signal, negatives (text mentions must not trigger), Flash rules, basic field extraction
+- [x] `lib/diff/caps.ts` — exports `MAX_STRING = 200` and `MAX_ARRAY = 20`
+- [x] `extractFeatures` imports caps and truncates all strings/arrays at extraction time
+- [x] `narrateBodySchema` imports caps from `lib/diff/caps.ts` (not hardcoded)
+
+---
+
+## 9. Feature Extraction + Diff ✅
+
+- [x] `lib/diff/extract-features.ts` — `extractFeatures()` returning `PageFeatures`; tech detection from concrete signals only; all strings truncated to `MAX_STRING`, arrays to `MAX_ARRAY`
+- [x] `lib/diff/extract-features.test.ts` — 24 tests: each tech signal, negatives, Flash rules, basic field extraction, truncation to `MAX_STRING`, array cap, end-to-end schema compatibility test
 - [x] `lib/diff/diff-features.ts` — `diffFeatures()` returning `FeatureDiff` from two `PageFeatures`
 - [x] `lib/diff/diff-features.test.ts` — 6 tests covering title change, Flash dying, added/removed nav links and headings, image count delta, no-change case
 
 ---
 
-## 9. Narrator ✅
+## 10. Narrator ✅
 
 - [x] `lib/narrator/build-prompt.ts` — `buildNarratorPrompt()` builds system + user prompt from `FeatureDiff`; instructs model to describe only listed changes
 - [x] `lib/narrator/build-prompt.test.ts` — 6 tests: domain/years in prompt, Flash, headings, title, no-change fallback, anti-hallucination instruction
-- [x] `lib/narrator/schema.ts` — Zod `narrateBodySchema` validating `domain` + `FeatureDiff` with string caps (200 chars) and array caps (20 items)
+- [x] `lib/narrator/schema.ts` — Zod `narrateBodySchema` importing caps from `lib/diff/caps.ts`
 - [x] `lib/narrator/schema.test.ts` — 8 tests: valid body, missing/invalid domain, oversized string, oversized array, missing diff, incomplete diff
-- [x] `lib/narrator/rate-limit.ts` — `RateLimiter` class (exported) + `rateLimiter` singleton; 10 req/min per IP
+- [x] `lib/narrator/rate-limit.ts` — `RateLimiter` class (exported for testing) + `rateLimiter` singleton; 10 req/min per IP
 - [x] `lib/narrator/rate-limit.test.ts` — 4 tests: allow up to max, block after max, independent IPs, window reset
 
 ---
 
-## 10. API Route Handlers ✅
+## 11. API Route Handlers ✅
 
 - [x] `app/api/snapshots/route.ts` — thin: validate → `fetchYearlySnapshots` → JSON; 1h CDN cache header
-- [x] `app/api/snapshot/route.ts` — validate → fetch → rewrite → sanitise → HTML; CSP + `nosniff` + 1-year immutable cache
-- [x] `app/api/diff/route.ts` — validate → parallel fetch → extract × 2 → diff → JSON; blocks same-timestamp; 1-year immutable cache
-- [x] `app/api/narrate/route.ts` — API key check → rate limit → Zod validate → build prompt → `streamText` → data stream response
+- [x] `app/api/snapshot/route.ts` — validate → fetch → rewrite → sanitise → HTML; CSP (`sandbox allow-popups allow-popups-to-escape-sandbox; script-src 'none'; object-src 'none'`) + `nosniff` + 1-year immutable cache; uses `InvalidTimestampError`
+- [x] `app/api/diff/route.ts` — validate → parallel fetch → extract × 2 → diff → JSON; blocks same-timestamp; 1-year immutable cache; uses `InvalidTimestampError`
+- [x] `app/api/narrate/route.ts` — API key check → rate limit → Zod validate → build prompt → `streamText` with model from `NARRATOR_MODEL` env (default `claude-haiku-5-5`) → data stream response
 
 ---
 
-## 11. App Pages ✅
+## 12. App Pages ✅
 
 - [x] `app/globals.css` — Tailwind directives, CSS custom properties for pumpkin/ghost/bone/void colours, custom scrollbar
 - [x] `app/layout.tsx` — root HTML, metadata, global CSS import
-- [x] `app/page.tsx` — landing page with domain form (Server Action redirect), curated examples from shared constant, footer year 2026
-- [x] `app/[domain]/page.tsx` — server component: validate domain → fetch snapshots → handle `NoSnapshotsError` and `ArchiveUnavailableError` with friendly UI states → render `TimeTravelView`
+- [x] `app/page.tsx` — landing page server component; `handleSearch` Server Action calls `validateDomain` and returns `{ error }` on failure; uses `CURATED_EXAMPLES` from shared constant; footer year 2026
+- [x] `app/LandingForm.tsx` — client form component using `useActionState` to display inline validation errors from `handleSearch`
+- [x] `app/[domain]/page.tsx` — server component: validate domain → fetch snapshots → handle `NoSnapshotsError` and `ArchiveUnavailableError` with friendly UI states → all navigation uses `<Link>` not `<a>`
 - [x] `app/[domain]/loading.tsx` — Suspense boundary with "reaching into the archive" message
 
 ---
 
-## 12. Client Components ✅
+## 13. Client Components ✅
 
 - [x] `components/TimeSlider.tsx` — dual-handle slider; instant year label feedback; debounced index commit; tick buttons; compare mode toggle; hides slider for single-snapshot domains (divide-by-zero fix)
-- [x] `components/SnapshotFrame.tsx` — sandboxed iframe; loading/error states; crossfade via opacity; only mounted when in the active set
+- [x] `components/SnapshotFrame.tsx` — sandboxed iframe with `allow-popups allow-popups-to-escape-sandbox`; loading/error states; crossfade via opacity; state reset handled by React key (no `useEffect` reset)
 - [x] `components/GhostOverlay.tsx` — debounced diff fetch (400ms); `AbortController` to discard stale responses; blocks same-timestamp compare; ghost label rendering with CSS fade animation
 - [x] `components/NarratorPanel.tsx` — `useCompletion`; auto-starts on mount; cancels stream on unmount; "Tell it again" button; 503/error display
 
 ---
 
-## 13. TimeTravelView Client Shell ✅
+## 14. TimeTravelView Client Shell ✅
 
-- [x] `app/[domain]/TimeTravelView.tsx` — manages `committedIndex` / `pendingIndex` split (debounce); `prevIndex` for crossfade; `compareIndex` with `activeDiff` cleared on compare change; `NarratorPanel` keyed by year pair; mounts only current + previous + adjacent iframes
+- [x] `app/[domain]/TimeTravelView.tsx` — manages `committedIndex` / `pendingIndex` split (debounce); `prevIndex` for crossfade; stale diff cleared in event handlers (not effects, to satisfy `react-hooks/set-state-in-effect` lint rule); `NarratorPanel` keyed by year pair; mounts only current + previous + adjacent iframes
 
 ---
 
-## 14. Developer Tooling ✅
+## 15. Developer Tooling ✅
 
-- [x] `eslint.config.mjs` — flat config extending `next/core-web-vitals` and `next/typescript`
-- [x] `npm run lint` → `eslint .`
-- [x] `scripts/warm.ts` — hits `/api/snapshots` for each curated domain; logs snapshot count per domain
+- [x] `eslint.config.mjs` — flat config using native `eslint-config-next` v16 exports (`import nextVitals from "eslint-config-next/core-web-vitals"`); no `FlatCompat`
+- [x] `npm run lint` → `eslint .` — zero errors, zero warnings
+- [x] `scripts/warm.ts` — imports `CURATED_EXAMPLES` from `lib/curated-examples.ts` (no duplicate list); hits `/api/snapshots` for each domain; logs snapshot count
 - [x] `npm run warm` → `tsx scripts/warm.ts`
 - [x] `tsx@4.19.4` added as dev dependency
 
@@ -131,14 +143,16 @@ All tasks in this spec are **completed**. This file documents what was built and
 |---|---|
 | `lib/errors.test.ts` | 13 |
 | `lib/validation/domain.test.ts` | 11 |
+| `lib/wayback/cdx.test.ts` | 8 |
+| `lib/wayback/fetch-snapshot.test.ts` | 6 |
 | `lib/wayback/rewrite-urls.test.ts` | 5 |
 | `lib/sanitize/sanitize.test.ts` | 13 |
-| `lib/diff/extract-features.test.ts` | 18 |
+| `lib/diff/extract-features.test.ts` | 24 |
 | `lib/diff/diff-features.test.ts` | 6 |
 | `lib/narrator/build-prompt.test.ts` | 6 |
 | `lib/narrator/schema.test.ts` | 8 |
 | `lib/narrator/rate-limit.test.ts` | 4 |
-| **Total** | **84** |
+| **Total** | **104** |
 
 ---
 

@@ -86,6 +86,11 @@ export async function fetchYearlySnapshots(domain: string): Promise<Snapshot[]> 
   return snapshots;
 }
 
+/** Exposed for tests only — clears the in-memory snapshot cache. */
+export function _clearCacheForTest(): void {
+  snapshotCache.clear();
+}
+
 /** Build the Wayback URL to fetch raw snapshot HTML (id_ = no toolbar). */
 export function snapshotHtmlUrl(timestamp: string, originalUrl: string): string {
   return `${WAYBACK_BASE}/${timestamp}id_/${originalUrl}`;

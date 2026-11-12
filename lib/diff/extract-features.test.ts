@@ -112,3 +112,72 @@ describe("extractFeatures — basic fields", () => {
     expect(extractFeatures(html).linkCount).toBe(2);
   });
 });
+
+import { diffFeatures } from "./diff-features";
+import { narrateBodySchema } from "@/lib/narrator/schema";
+import { MAX_STRING, MAX_ARRAY } from "./caps";
+
+describe("extractFeatures — truncation / schema compatibility", () => {
+  it("truncates a 500-char title to MAX_STRING", () => {
+    const longTitle = "T".repeat(500);
+    const html = `<html><head><title>${longTitle}</title></head><body></body></html>`;
+    const { title } = extractFeatures(html);
+    expect(title.length).toBe(MAX_STRING);
+  });
+
+  it("truncates a 500-char heading to MAX_STRING", () => {
+    const longHeading = "H".repeat(500);
+    const html = `<html><body><h1>${longHeading}</h1></body></html>`;
+    const { headings } = extractFeatures(html);
+    expect(headings[0].length).toBe(MAX_STRING);
+  });
+
+  it("truncates a 500-char metaDescription to MAX_STRING", () => {
+    const longDesc = "D".repeat(500);
+    const html = `<html><head><meta name="description" content="${longDesc}"></head><body></body></html>`;
+    const { metaDescription } = extractFeatures(html);
+    expect(metaDescription.length).toBe(MAX_STRING);
+  });
+
+  it("truncates imageAlts to MAX_STRING", () => {
+    const longAlt = "A".repeat(500);
+    const html = `<html><body><img src="x.png" alt="${longAlt}"></body></html>`;
+    const { imageAlts } = extractFeatures(html);
+    expect(imageAlts[0].length).toBe(MAX_STRING);
+  });
+
+  it("caps headings array at MAX_ARRAY items", () => {
+    const headingTags = Array.from({ length: MAX_ARRAY + 5 }, (_, i) => `<h2>Heading ${i}</h2>`).join("");
+    const html = `<html><body>${headingTags}</body></html>`;
+    const { headings } = extractFeatures(html);
+    expect(headings.length).toBeLessThanOrEqual(MAX_ARRAY);
+  });
+
+  it("produces a FeatureDiff from long-content pages that passes narrateBodySchema", () => {
+    const longTitle = "T".repeat(500);
+    const longHeading = "H".repeat(500);
+    const longAlt = "A".repeat(500);
+    const longDesc = "D".repeat(500);
+
+    const fromHtml = `
+      <html>
+        <head>
+          <title>${longTitle}</title>
+          <meta name="description" content="${longDesc}">
+        </head>
+        <body>
+          <h1>${longHeading}</h1>
+          <img src="x.png" alt="${longAlt}">
+        </body>
+      </html>`;
+
+    const toHtml = `<html><head><title>Short</title></head><body><h1>New heading</h1></body></html>`;
+
+    const from = extractFeatures(fromHtml);
+    const to = extractFeatures(toHtml);
+    const diff = diffFeatures(from, 2005, to, 2010);
+
+    const result = narrateBodySchema.safeParse({ diff, domain: "example.com" });
+    expect(result.success).toBe(true);
+  });
+});

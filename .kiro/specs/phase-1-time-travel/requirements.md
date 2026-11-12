@@ -11,7 +11,7 @@ Back to the Past is a Kiroween hackathon entry in the "Resurrection" category. U
 ### FR-1 Landing Page
 
 **FR-1.1** The root route `/` renders a domain input form with a text field and a "Travel" submit button.  
-**FR-1.2** On submit, the user is redirected to `/<domain>` (URL-encoded). The server validates the domain before redirecting.  
+**FR-1.2** On submit, the domain is validated server-side via `validateDomain`. If invalid, an error message is shown inline on the form (using `useActionState`). If valid, the user is redirected to `/<domain>` (URL-encoded).  
 **FR-1.3** A curated set of example domains is shown as quick-links below the form. Clicking one navigates to that domain's time-travel view.  
 **FR-1.4** The landing page has a Halloween-themed visual style (dark background, pumpkin/ghost color palette).
 
@@ -28,7 +28,7 @@ Back to the Past is a Kiroween hackathon entry in the "Resurrection" category. U
 **FR-3.2** Results are sorted ascending by timestamp.  
 **FR-3.3** Snapshot data includes: `timestamp` (14-digit), `year` (integer), `original` URL, and `statusCode`.  
 **FR-3.4** If the CDX API returns no rows the route returns a 404 with `NoSnapshotsError`.  
-**FR-3.5** CDX results are cached (Next.js fetch cache + in-memory Map) so repeat visits within the same server instance are instant without hitting the archive again.  
+**FR-3.5** CDX results are cached (Next.js fetch cache + in-memory Map with 1 h TTL) so repeat visits within the same server instance are instant without hitting the archive again.  
 **FR-3.6** The CDX timeout is 45 seconds to handle slow responses for popular domains.
 
 ### FR-4 Time-Travel View
@@ -36,7 +36,8 @@ Back to the Past is a Kiroween hackathon entry in the "Resurrection" category. U
 **FR-4.1** Navigating to `/<domain>` fetches the snapshot list server-side and renders a `TimeTravelView` client component.  
 **FR-4.2** A `loading.tsx` Suspense boundary shows a loading state while the CDX fetch is in progress.  
 **FR-4.3** If the archive is unavailable (`ArchiveUnavailableError`) the page shows a friendly "archive is slow, try again" state rather than a generic error boundary.  
-**FR-4.4** The view has a sticky top bar showing the domain name and the currently selected year.
+**FR-4.4** The view has a sticky top bar showing the domain name and the currently selected year.  
+**FR-4.5** All `<a>` elements that navigate to app-internal paths use `<Link>` from `next/link`.
 
 ### FR-5 Time Slider
 
@@ -50,7 +51,7 @@ Back to the Past is a Kiroween hackathon entry in the "Resurrection" category. U
 
 **FR-6.1** The `/api/snapshot?domain=&timestamp=` endpoint fetches the raw archived HTML using the Wayback `id_` modifier (no toolbar).  
 **FR-6.2** Asset URLs (images, CSS, scripts) are rewritten to Wayback `im_`, `cs_`, and `if_` modifiers so they load correctly.  
-**FR-6.3** Anchor links are rewritten to Wayback URLs and given `target="_blank" rel="noopener noreferrer"` so they don't navigate the iframe.  
+**FR-6.3** Anchor links are rewritten to Wayback `id_` URLs and given `target="_blank" rel="noopener noreferrer"` so they open in new tabs rather than navigating the iframe.  
 **FR-6.4** The HTML is sanitised (see FR-7) before being served.  
 **FR-6.5** Snapshots are served with `Cache-Control: immutable` (1 year) since archived content never changes.  
 **FR-6.6** Only the current, previous, and two adjacent snapshots are mounted as iframes at any time — never all years at once.  
@@ -65,8 +66,8 @@ Back to the Past is a Kiroween hackathon entry in the "Resurrection" category. U
 **FR-7.4** `javascript:` values in `href`, `src`, `action`, `formaction`, `data`, and `xlink:href` are neutralised (`href` → `#`, others removed).  
 **FR-7.5** `data:text/html` values in URL-bearing attributes are neutralised the same way.  
 **FR-7.6** The `srcdoc` attribute is stripped.  
-**FR-7.7** The snapshot route sends `Content-Security-Policy: sandbox; script-src 'none'; object-src 'none'` and `X-Content-Type-Options: nosniff` as a second layer of defence.  
-**FR-7.8** The iframe in `SnapshotFrame` has `sandbox="allow-same-origin allow-forms"` as a third layer.
+**FR-7.7** The snapshot route sends `Content-Security-Policy: sandbox allow-popups allow-popups-to-escape-sandbox; script-src 'none'; object-src 'none'` and `X-Content-Type-Options: nosniff` as a second layer of defence.  
+**FR-7.8** The iframe in `SnapshotFrame` has `sandbox="allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"` as a third layer. Scripts remain blocked.
 
 ### FR-8 Ghost Diff
 
@@ -82,7 +83,7 @@ Back to the Past is a Kiroween hackathon entry in the "Resurrection" category. U
 
 **FR-9.1** The `/api/narrate` endpoint accepts `{ diff: FeatureDiff, domain: string }` and streams a Claude response via the Vercel AI SDK.  
 **FR-9.2** The narrator prompt is built from the structured diff only — it instructs the model to describe only changes present in the diff and not to invent content.  
-**FR-9.3** The model ID is read from the `NARRATOR_MODEL` environment variable, defaulting to `claude-haiku-4-5`.  
+**FR-9.3** The model ID is read from the `NARRATOR_MODEL` environment variable, defaulting to `claude-haiku-5-5`.  
 **FR-9.4** If `ANTHROPIC_API_KEY` is not set, the route returns 503 with a clear JSON error message.  
 **FR-9.5** The request body is validated with a Zod schema: `domain` passes `validateDomain`, all string fields are capped at 200 chars, all arrays at 20 items. Invalid bodies return 400.  
 **FR-9.6** A per-IP in-memory rate limiter (10 requests/minute) returns 429 when exceeded.  
@@ -96,13 +97,19 @@ Back to the Past is a Kiroween hackathon entry in the "Resurrection" category. U
 **FR-10.3** `errorToJson()` serialises errors safely for API responses without leaking internal details.  
 **FR-10.4** There are no silent fallbacks: every error state is surfaced explicitly to the UI.
 
-### FR-11 Developer Tooling
+### FR-11 Schema / Caps Consistency
 
-**FR-11.1** `npm run dev` starts the Next.js development server.  
-**FR-11.2** `npm run build` produces a production build.  
-**FR-11.3** `npm run test` runs the Vitest suite once.  
-**FR-11.4** `npm run lint` runs ESLint with the Next.js flat config.  
-**FR-11.5** `npm run warm` hits `/api/snapshots` for each curated example domain so responses are cached before a demo.
+**FR-11.1** A shared `lib/diff/caps.ts` module exports `MAX_STRING = 200` and `MAX_ARRAY = 20`.  
+**FR-11.2** `extractFeatures` truncates all string fields to `MAX_STRING` and all arrays to `MAX_ARRAY` at extraction time.  
+**FR-11.3** `narrateBodySchema` imports and applies the same constants, ensuring `extractFeatures` output always passes schema validation without further truncation.
+
+### FR-12 Developer Tooling
+
+**FR-12.1** `npm run dev` starts the Next.js development server.  
+**FR-12.2** `npm run build` produces a production build.  
+**FR-12.3** `npm run test` runs the Vitest suite once.  
+**FR-12.4** `npm run lint` runs ESLint using the flat config (`eslint-config-next` v16 native flat exports — no `FlatCompat`).  
+**FR-12.5** `npm run warm` hits `/api/snapshots` for each domain in `CURATED_EXAMPLES` so responses are cached before a demo. The script imports from `lib/curated-examples.ts` — no duplicate list.
 
 ---
 
@@ -110,12 +117,12 @@ Back to the Past is a Kiroween hackathon entry in the "Resurrection" category. U
 
 **NFR-1 Performance** — The demo must reach first paint in under 2 minutes. Snapshot responses are cached with `immutable` headers. CDX results are cached for 1 hour. Only current ± adjacent iframes are mounted.
 
-**NFR-2 Security** — Archived HTML is untrusted. It is sanitised server-side and rendered in a sandboxed iframe with no scripts allowed. All archive calls go through Next.js route handlers; no archive requests are made from the client. Domain input is validated server-side before any outbound call.
+**NFR-2 Security** — Archived HTML is untrusted. It is sanitised server-side and rendered in a sandboxed iframe with no scripts allowed (but popups enabled so rewritten links open correctly). All archive calls go through Next.js route handlers; no archive requests are made from the client. Domain input is validated server-side before any outbound call.
 
 **NFR-3 Reliability** — Snapshots being broken (missing CSS/images) is expected and handled gracefully. Missing snapshots show a tombstone state, not a blank iframe.
 
 **NFR-4 Accuracy** — The narrator only describes changes present in the computed diff. The archive is the source of truth; no content is invented.
 
-**NFR-5 Accessibility** — Interactive elements have `aria-label` or `aria-pressed` attributes. Loading and live regions use `aria-live`. Screen-reader-only labels are provided for the domain input. Error states are rendered as visible text, not just colour.
+**NFR-5 Accessibility** — Interactive elements have `aria-label` or `aria-pressed` attributes. Loading and live regions use `aria-live`. Screen-reader-only labels are provided for the domain input. Validation errors render as visible `role="alert"` text, not just colour.
 
-**NFR-6 Maintainability** — Business logic lives in `lib/` as pure, testable functions. Route handlers stay thin (validate → call lib → respond). Every `lib/` function has colocated Vitest tests covering happy paths, edge cases, and failure cases.
+**NFR-6 Maintainability** — Business logic lives in `lib/` as pure, testable functions. Route handlers stay thin (validate → call lib → respond). Every `lib/` module has colocated Vitest tests covering happy paths, edge cases, and failure cases.

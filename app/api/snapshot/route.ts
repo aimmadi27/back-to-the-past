@@ -35,8 +35,9 @@ export async function GET(request: NextRequest) {
         "Content-Type": "text/html; charset=utf-8",
         // Snapshots are immutable — cache for 1 year
         "Cache-Control": "public, s-maxage=31536000, immutable",
-        // Defence-in-depth: even if opened directly in a tab, scripts can't run
-        "Content-Security-Policy": "sandbox; script-src 'none'; object-src 'none'",
+        // Defence-in-depth: even if opened directly in a tab, scripts can't run.
+        // allow-popups is included so rewritten links with target="_blank" work.
+        "Content-Security-Policy": "sandbox allow-popups allow-popups-to-escape-sandbox; script-src 'none'; object-src 'none'",
         "X-Content-Type-Options": "nosniff",
       },
     });

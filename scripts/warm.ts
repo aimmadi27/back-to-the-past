@@ -6,16 +6,9 @@
  * before the demo starts.
  */
 
-const BASE_URL = process.env.WARM_BASE_URL ?? "http://localhost:3000";
+import { CURATED_EXAMPLES } from "../lib/curated-examples";
 
-const CURATED_EXAMPLES = [
-  "apple.com",
-  "google.com",
-  "amazon.com",
-  "myspace.com",
-  "geocities.ws",
-  "bbc.co.uk",
-];
+const BASE_URL = process.env.WARM_BASE_URL ?? "http://localhost:3000";
 
 async function warm(domain: string): Promise<void> {
   const url = `${BASE_URL}/api/snapshots?domain=${encodeURIComponent(domain)}`;
@@ -35,7 +28,7 @@ async function warm(domain: string): Promise<void> {
 
 (async () => {
   console.log(`Warming ${CURATED_EXAMPLES.length} domains against ${BASE_URL}…\n`);
-  for (const domain of CURATED_EXAMPLES) {
+  for (const { domain } of CURATED_EXAMPLES) {
     await warm(domain);
   }
   console.log("\nDone.");
