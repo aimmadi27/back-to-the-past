@@ -3,18 +3,22 @@ import { validateDomain } from "@/lib/validation/domain";
 import { fetchSnapshotHtml } from "@/lib/wayback/fetch-snapshot";
 import { extractFeatures } from "@/lib/diff/extract-features";
 import { diffFeatures } from "@/lib/diff/diff-features";
+import { validateOriginalUrl } from "@/lib/wayback/validate-original";
 import { errorToStatus, errorToJson, InvalidTimestampError } from "@/lib/errors";
 
 /**
- * GET /api/diff?domain=<domain>&from=<timestamp>&to=<timestamp>
+ * GET /api/diff?domain=&from=&to=&fromOriginal=&toOriginal=
  *
  * Returns a structured JSON diff between two snapshots.
- * This is what the narrator receives — not raw HTML.
+ * `fromOriginal` and `toOriginal` are the CDX `original` URLs for each timestamp.
+ * Both must have hostnames matching `domain`.
  */
 export async function GET(request: NextRequest) {
   const domain = request.nextUrl.searchParams.get("domain") ?? "";
   const from = request.nextUrl.searchParams.get("from") ?? "";
   const to = request.nextUrl.searchParams.get("to") ?? "";
+  const fromOriginal = request.nextUrl.searchParams.get("fromOriginal") ?? "";
+  const toOriginal = request.nextUrl.searchParams.get("toOriginal") ?? "";
 
   try {
     const validDomain = validateDomain(domain);
@@ -32,11 +36,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const originalUrl = `https://${validDomain}/`;
+    const fromUrl = validateOriginalUrl(fromOriginal, validDomain);
+    const toUrl = validateOriginalUrl(toOriginal, validDomain);
 
     const [fromHtml, toHtml] = await Promise.all([
-      fetchSnapshotHtml(validDomain, from, originalUrl),
-      fetchSnapshotHtml(validDomain, to, originalUrl),
+      fetchSnapshotHtml(validDomain, from, fromUrl),
+      fetchSnapshotHtml(validDomain, to, toUrl),
     ]);
 
     const fromFeatures = extractFeatures(fromHtml);

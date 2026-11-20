@@ -1,8 +1,13 @@
 import * as cheerio from "cheerio";
+import { MAX_STRING, MAX_ARRAY } from "./caps";
 
 /**
  * A set of observable features extracted from a snapshot's HTML.
  * These are what we diff between years — not raw HTML.
+ *
+ * All string values are truncated to MAX_STRING chars and all arrays to
+ * MAX_ARRAY items so that any derived FeatureDiff will pass narrateBodySchema
+ * without further processing.
  */
 export interface PageFeatures {
   title: string;
@@ -23,33 +28,34 @@ export interface PageFeatures {
 export function extractFeatures(html: string): PageFeatures {
   const $ = cheerio.load(html);
 
-  const title = $("title").first().text().trim();
+  const title = $("title").first().text().trim().slice(0, MAX_STRING);
 
   const metaDescription =
-    $('meta[name="description"]').attr("content")?.trim() ?? "";
+    ($('meta[name="description"]').attr("content")?.trim() ?? "").slice(0, MAX_STRING);
 
   const headings: string[] = [];
   $("h1, h2, h3").each((_, el) => {
-    const text = $(el).text().trim();
+    const text = $(el).text().trim().slice(0, MAX_STRING);
     if (text) headings.push(text);
   });
 
   const navLinks: string[] = [];
   $("nav a, header a").each((_, el) => {
     const text = $(el).text().trim();
-    if (text && text.length < 60) navLinks.push(text);
+    // Keep only short labels (they appear in narration); cap to MAX_STRING
+    if (text && text.length < 60) navLinks.push(text.slice(0, MAX_STRING));
   });
 
   const mainCopy: string[] = [];
   $("p").each((_, el) => {
     const text = $(el).text().trim();
-    // Keep only non-trivial paragraphs
-    if (text.length > 40) mainCopy.push(text.slice(0, 200));
+    // Keep only non-trivial paragraphs; cap at MAX_STRING
+    if (text.length > 40) mainCopy.push(text.slice(0, MAX_STRING));
   });
 
   const imageAlts: string[] = [];
   $("img[alt]").each((_, el) => {
-    const alt = $(el).attr("alt")?.trim();
+    const alt = $(el).attr("alt")?.trim().slice(0, MAX_STRING);
     if (alt) imageAlts.push(alt);
   });
 
@@ -59,7 +65,7 @@ export function extractFeatures(html: string): PageFeatures {
   $("style").each((_, el) => {
     const css = $(el).text();
     const matches = css.match(colorRegex) ?? [];
-    colorMentions.push(...matches.slice(0, 20)); // cap per snapshot
+    colorMentions.push(...matches.slice(0, MAX_ARRAY));
   });
 
   // ─── Tech detection from concrete signals only ───────────────────────────
@@ -82,8 +88,10 @@ export function extractFeatures(html: string): PageFeatures {
   if (scriptSrcs.some((s) => /jquery(\.min)?\.js/.test(s))) {
     techHints.push("jQuery");
   }
-  if (scriptSrcs.some((s) => /bootstrap(\.min)?\.js/.test(s)) ||
-      linkHrefs.some((h) => /bootstrap(\.min)?\.css/.test(h))) {
+  if (
+    scriptSrcs.some((s) => /bootstrap(\.min)?\.js/.test(s)) ||
+    linkHrefs.some((h) => /bootstrap(\.min)?\.css/.test(h))
+  ) {
     techHints.push("Bootstrap");
   }
   if (scriptSrcs.some((s) => /angular(\.min)?\.js/.test(s))) {
@@ -98,7 +106,9 @@ export function extractFeatures(html: string): PageFeatures {
 
   // WordPress: generator meta OR wp-content in any src/href
   const generatorMeta = $('meta[name="generator"]').attr("content") ?? "";
-  const allSrcs = [...scriptSrcs, ...linkHrefs,
+  const allSrcs = [
+    ...scriptSrcs,
+    ...linkHrefs,
     ...$("img[src]").map((_, el) => ($(el).attr("src") ?? "").toLowerCase()).get(),
   ];
   if (/wordpress/i.test(generatorMeta) || allSrcs.some((s) => s.includes("wp-content"))) {
@@ -125,11 +135,11 @@ export function extractFeatures(html: string): PageFeatures {
 
   return {
     title,
-    headings: dedupe(headings).slice(0, 20),
-    navLinks: dedupe(navLinks).slice(0, 20),
+    headings: dedupe(headings).slice(0, MAX_ARRAY),
+    navLinks: dedupe(navLinks).slice(0, MAX_ARRAY),
     mainCopy: mainCopy.slice(0, 10),
-    imageAlts: dedupe(imageAlts).slice(0, 20),
-    colorMentions: dedupe(colorMentions).slice(0, 20),
+    imageAlts: dedupe(imageAlts).slice(0, MAX_ARRAY),
+    colorMentions: dedupe(colorMentions).slice(0, MAX_ARRAY),
     techHints: dedupe(techHints),
     metaDescription,
     hasFlash,

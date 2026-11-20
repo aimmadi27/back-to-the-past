@@ -41,9 +41,12 @@ export default function TimeSlider({
 
   const handleCompareChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      onCompareIndexChange(parseInt(e.target.value, 10));
+      const next = parseInt(e.target.value, 10);
+      // Prevent comparing a year with itself — skip over the current index
+      if (next === currentIndex) return;
+      onCompareIndexChange(next);
     },
-    [onCompareIndexChange]
+    [onCompareIndexChange, currentIndex]
   );
 
   if (snapshots.length === 0) return null;
@@ -98,7 +101,15 @@ export default function TimeSlider({
         {snapshots.map((snap, i) => (
           <button
             key={snap.timestamp}
-            onClick={() => onIndexChange(i)}
+            onClick={() => {
+              // In compare mode, clicking a tick sets the compare index (not current)
+              // but only if it isn't the same as the current year.
+              if (compareIndex !== null) {
+                if (i !== currentIndex) onCompareIndexChange(i);
+              } else {
+                onIndexChange(i);
+              }
+            }}
             className={`text-xs transition-colors ${
               i === currentIndex
                 ? "text-pumpkin font-bold"

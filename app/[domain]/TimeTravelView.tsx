@@ -24,7 +24,7 @@ interface TimeTravelViewProps {
 export default function TimeTravelView({ domain, snapshots }: TimeTravelViewProps) {
   // "committed" index is what actually loads an iframe
   const [committedIndex, setCommittedIndex] = useState(snapshots.length - 1);
-  // "pending" index tracks the slider position while dragging
+  // "pending" index tracks the slider position while dragging (instant label feedback)
   const [pendingIndex, setPendingIndex] = useState(snapshots.length - 1);
   const [prevIndex, setPrevIndex] = useState<number | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -32,49 +32,43 @@ export default function TimeTravelView({ domain, snapshots }: TimeTravelViewProp
   const [compareIndex, setCompareIndex] = useState<number | null>(null);
   const [activeDiff, setActiveDiff] = useState<FeatureDiff | null>(null);
 
-  // Debounce: update pending immediately (shows year label), commit after 250ms
-  const handleIndexChange = useCallback(
-    (index: number) => {
-      setPendingIndex(index);
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
-        setCommittedIndex((prev) => {
-          setPrevIndex(prev);
-          return index;
-        });
-      }, 250);
-    },
-    []
-  );
-
-  // Clear activeDiff whenever the compare config changes so narration refreshes
-  const handleCompareIndexChange = useCallback((index: number | null) => {
-    setCompareIndex(index);
-    setActiveDiff(null);
-  }, []);
-
-  // Also clear activeDiff when the current year changes in compare mode
-  useEffect(() => {
-    if (compareIndex !== null) {
-      setActiveDiff(null);
-    }
-  }, [committedIndex, compareIndex]);
-
-  // Cleanup debounce on unmount
+  // Cancel pending debounce timer on unmount to prevent setState on unmounted component
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, []);
 
+  // Debounce: update pending immediately (shows year label), commit after 250ms.
+  // Also clears stale diff in the updater callback when the year actually changes.
+  const handleIndexChange = useCallback((index: number) => {
+    setPendingIndex(index);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setCommittedIndex((prev) => {
+        if (prev !== index) {
+          setActiveDiff(null);
+        }
+        setPrevIndex(prev);
+        return index;
+      });
+    }, 250);
+  }, []);
+
+  // Clear activeDiff whenever compare config changes so narration always reflects
+  // the current pair.
+  const handleCompareIndexChange = useCallback((index: number | null) => {
+    setCompareIndex(index);
+    setActiveDiff(null);
+  }, []);
+
   const currentSnapshot = snapshots[committedIndex];
   const compareSnapshot = compareIndex !== null ? snapshots[compareIndex] : null;
 
-  // Determine which indexes to actually mount (current + previous only)
+  // Determine which indexes to actually mount (current + previous + adjacent only)
   const mountedIndexes = new Set<number>();
   mountedIndexes.add(committedIndex);
   if (prevIndex !== null) mountedIndexes.add(prevIndex);
-  // Prefetch adjacent years (at most 2 extra requests)
   if (committedIndex > 0) mountedIndexes.add(committedIndex - 1);
   if (committedIndex < snapshots.length - 1) mountedIndexes.add(committedIndex + 1);
 
@@ -107,6 +101,7 @@ export default function TimeTravelView({ domain, snapshots }: TimeTravelViewProp
                 key={snap.timestamp}
                 domain={domain}
                 timestamp={snap.timestamp}
+                original={snap.original}
                 year={snap.year}
                 active={i === committedIndex}
               />
@@ -118,7 +113,9 @@ export default function TimeTravelView({ domain, snapshots }: TimeTravelViewProp
             <GhostOverlay
               domain={domain}
               fromTimestamp={compareSnapshot.timestamp}
+              fromOriginal={compareSnapshot.original}
               toTimestamp={currentSnapshot.timestamp}
+              toOriginal={currentSnapshot.original}
               fromYear={compareSnapshot.year}
               toYear={currentSnapshot.year}
               onDiffReady={handleDiffReady}
@@ -182,7 +179,6 @@ export default function TimeTravelView({ domain, snapshots }: TimeTravelViewProp
 }
 
 function formatTimestamp(ts: string): string {
-  // 14-digit timestamp: YYYYMMDDHHmmss
   const month = ts.slice(4, 6);
   const day = ts.slice(6, 8);
   const year = ts.slice(0, 4);

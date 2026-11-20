@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { validateDomain } from "@/lib/validation/domain";
 import { fetchYearlySnapshots } from "@/lib/wayback/cdx";
 import { InvalidDomainError, NoSnapshotsError, ArchiveUnavailableError } from "@/lib/errors";
@@ -35,9 +36,9 @@ export default async function DomainPage({ params }: PageProps) {
             <div className="text-5xl">🪦</div>
             <h1 className="text-xl font-semibold text-bone">Invalid domain</h1>
             <p className="text-gray-400 text-sm">{err.message}</p>
-            <a href="/" className="text-pumpkin underline underline-offset-2 text-sm">
+            <Link href="/" className="text-pumpkin underline underline-offset-2 text-sm">
               ← Back to the crypt
-            </a>
+            </Link>
           </div>
         </main>
       );
@@ -60,9 +61,9 @@ export default async function DomainPage({ params }: PageProps) {
               <strong className="text-bone">{validDomain}</strong>. It may not
               have been captured, or it may not exist.
             </p>
-            <a href="/" className="text-pumpkin underline underline-offset-2 text-sm">
+            <Link href="/" className="text-pumpkin underline underline-offset-2 text-sm">
               ← Back to the crypt
-            </a>
+            </Link>
           </div>
         </main>
       );
@@ -79,13 +80,13 @@ export default async function DomainPage({ params }: PageProps) {
               <strong className="text-bone">{validDomain}</strong>. This is common for
               popular domains. Try again in a moment.
             </p>
-            <a href={`/${encodeURIComponent(validDomain)}`} className="text-pumpkin underline underline-offset-2 text-sm">
+            <Link href={`/${encodeURIComponent(validDomain)}`} className="text-pumpkin underline underline-offset-2 text-sm">
               Try again
-            </a>
+            </Link>
             <span className="text-gray-600 mx-2 text-sm">·</span>
-            <a href="/" className="text-gray-500 underline underline-offset-2 text-sm">
+            <Link href="/" className="text-gray-500 underline underline-offset-2 text-sm">
               ← Back to the crypt
-            </a>
+            </Link>
           </div>
         </main>
       );

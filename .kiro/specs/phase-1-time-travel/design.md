@@ -6,6 +6,7 @@
 Browser
   │
   ├── app/page.tsx                   Landing page (Server Component)
+  │     └── LandingForm.tsx          Domain form with validation error display (Client)
   │
   └── app/[domain]/page.tsx          Domain page (Server Component)
         ├── loading.tsx              Suspense boundary
@@ -23,7 +24,7 @@ API Routes (Next.js Route Handlers)
 
 lib/ (Pure functions, no framework coupling)
   ├── errors.ts                 Typed error classes + serialisation
-  ├── curated-examples.ts       Shared domain list
+  ├── curated-examples.ts       Shared domain list (used by page.tsx + warm script)
   ├── validation/domain.ts      Hostname validation
   ├── wayback/
   │     ├── cdx.ts              CDX API client + in-memory cache
@@ -31,11 +32,12 @@ lib/ (Pure functions, no framework coupling)
   │     └── rewrite-urls.ts     Asset + anchor URL rewriting
   ├── sanitize/sanitize.ts      HTML sanitisation (Cheerio)
   ├── diff/
-  │     ├── extract-features.ts HTML → PageFeatures
+  │     ├── caps.ts             Shared MAX_STRING / MAX_ARRAY constants
+  │     ├── extract-features.ts HTML → PageFeatures (truncates to caps)
   │     └── diff-features.ts    PageFeatures × 2 → FeatureDiff
   └── narrator/
         ├── build-prompt.ts     FeatureDiff → Claude prompt
-        ├── schema.ts           Zod validation for /api/narrate body
+        ├── schema.ts           Zod validation for /api/narrate body (imports caps)
         └── rate-limit.ts       Per-IP in-memory rate limiter
 ```
 
@@ -46,26 +48,31 @@ lib/ (Pure functions, no framework coupling)
 ### 1. Landing → Domain page
 
 ```
-User types domain
-  → Server Action handleSearch()
-      → redirect(/<domain>)
-          → DomainPage server component
-              → validateDomain(decoded)         [lib/validation/domain]
-              → fetchYearlySnapshots(domain)    [lib/wayback/cdx]
-              → <TimeTravelView snapshots={...} />
+User types domain and submits form
+  → LandingForm calls Server Action handleSearch()
+      → validateDomain(raw)              [lib/validation/domain]
+          → InvalidDomainError → return { error: message } → shown inline
+          → valid → redirect(/<domain>)
+              → DomainPage server component
+                  → validateDomain(decoded)         [lib/validation/domain]
+                  → fetchYearlySnapshots(domain)    [lib/wayback/cdx]
+                  → <TimeTravelView snapshots={...} />
 ```
 
 ### 2. Snapshot rendering
 
 ```
 TimeTravelView mounts committed iframe
-  → SnapshotFrame renders <iframe src="/api/snapshot?...">
+  → SnapshotFrame renders:
+      <iframe src="/api/snapshot?domain=&timestamp=&original=">
+      (original = snap.original from CDX data)
       → Route handler GET /api/snapshot
           → validateDomain + validateTimestamp
-          → fetchSnapshotHtml()                 [lib/wayback/fetch-snapshot]
-          → rewriteAssetUrls()                  [lib/wayback/rewrite-urls]
-          → sanitizeHtml()                      [lib/sanitize/sanitize]
-          → Response(html, { CSP headers })
+          → validateOriginalUrl(original, domain)   [lib/wayback/validate-original]
+          → fetchSnapshotHtml(domain, ts, original) [lib/wayback/fetch-snapshot]
+          → rewriteAssetUrls(html, ts, original)    [lib/wayback/rewrite-urls]
+          → sanitizeHtml()                          [lib/sanitize/sanitize]
+          → Response(html, { CSP + nosniff headers })
 ```
 
 ### 3. Ghost diff + narration
@@ -73,7 +80,8 @@ TimeTravelView mounts committed iframe
 ```
 User toggles compare mode
   → GhostOverlay (debounced 400ms, AbortController)
-      → GET /api/diff?from=&to=
+      → GET /api/diff?from=&to=&fromOriginal=&toOriginal=
+          → validateOriginalUrl × 2               [lib/wayback/validate-original]
           → fetchSnapshotHtml() × 2 (parallel)
           → extractFeatures() × 2               [lib/diff/extract-features]
           → diffFeatures()                      [lib/diff/diff-features]
@@ -86,7 +94,7 @@ User toggles compare mode
           → Zod validation (narrateBodySchema)
           → rate limiter check
           → buildNarratorPrompt(diff, domain)   [lib/narrator/build-prompt]
-          → streamText(claude-haiku-4-5)         [Vercel AI SDK]
+          → streamText(claude-haiku-5-5)         [Vercel AI SDK]
           → data stream response
       → useCompletion() streams text into panel
 ```
@@ -95,15 +103,19 @@ User toggles compare mode
 
 ## Key Design Decisions
 
+### Landing form: server validation with inline errors
+
+`handleSearch` is a Server Action that calls `validateDomain` before redirecting. `LandingForm` is a thin client component that wraps the form in `useActionState` so the server-returned `{ error }` state renders inline on the same page. This avoids a full page navigation for invalid input, keeps validation server-side, and doesn't require client-side JS to run `validateDomain`.
+
 ### Sanitisation pipeline order
 
-HTML passes through three transforms in sequence:
+HTML passes through four protection layers in sequence:
 1. `rewriteAssetUrls` — rewrites img/CSS/script/anchor URLs to Wayback CDX modifiers
 2. `sanitizeHtml` — strips all executable content server-side
-3. CSP header — prevents execution at the browser level if the response is opened directly
-4. `sandbox` iframe attribute — final browser-level containment
+3. CSP header (`sandbox allow-popups allow-popups-to-escape-sandbox; script-src 'none'; object-src 'none'`) — prevents execution if the response is opened directly in a tab
+4. `sandbox="allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"` on the iframe — final browser-level containment
 
-Rewriting before sanitising keeps the pipeline flexible (order can be swapped without correctness issues) and means anchor rewrites survive sanitisation.
+Popups are permitted (both in CSP and sandbox) so that the rewritten `<a target="_blank">` links actually open. Scripts remain blocked at all layers.
 
 ### Iframe mounting strategy
 
@@ -112,6 +124,10 @@ Mounting one iframe per snapshot year for a domain like apple.com would fire ~30
 ### Diff input to narrator (not raw HTML)
 
 Passing raw HTML to the LLM would be expensive, slow, and hard to ground. The structured `FeatureDiff` JSON is small (<2KB), deterministic, and contains only observable changes — which enforces the "only describe what's in the diff" constraint at the data layer, not just the prompt layer.
+
+### Shared caps: `lib/diff/caps.ts`
+
+`MAX_STRING = 200` and `MAX_ARRAY = 20` are defined once and imported by both `extractFeatures` (which truncates at extraction time) and `narrateBodySchema` (which validates at the API boundary). This guarantees the two layers are always in sync — if caps change, both enforcement points update together.
 
 ### Tech detection from concrete signals
 
@@ -133,6 +149,10 @@ The narrator route uses a simple in-memory `RateLimiter` class (10 req/min per I
 
 ## Component Design
 
+### `LandingForm`
+
+Client component wrapping the domain input in `useActionState`. Receives the `handleSearch` Server Action as a prop so the page itself stays a Server Component. Displays inline validation errors from the server without a page navigation. Shows a pending state ("…") on the submit button while the action is in flight.
+
 ### `TimeTravelView`
 
 State:
@@ -140,13 +160,13 @@ State:
 - `pendingIndex` — index shown in the year label while dragging (instant feedback)
 - `prevIndex` — previous committed index, kept mounted for crossfade
 - `compareIndex` — second slider position (null = compare mode off)
-- `activeDiff` — latest `FeatureDiff` from `GhostOverlay`, cleared on compare config change
+- `activeDiff` — latest `FeatureDiff` from `GhostOverlay`, cleared in event handlers (not effects)
 
-The slider passes `pendingIndex` to `TimeSlider` for display but only commits to `committedIndex` after the 250ms debounce. `NarratorPanel` is keyed by `${compareYear}-${currentYear}` so React re-mounts it (cancelling in-flight streams) whenever the pair changes.
+Stale diff clearing is handled in `handleIndexChange` and `handleCompareIndexChange` — both event handlers — not in `useEffect`, which would cause the ESLint `react-hooks/set-state-in-effect` error. `NarratorPanel` is keyed by `${compareYear}-${currentYear}` so React re-mounts it whenever the pair changes.
 
 ### `SnapshotFrame`
 
-Stateless relative to the parent — the parent controls which frames are mounted. Each frame manages its own `loaded` / `error` state. The iframe `src` points to `/api/snapshot` which returns the sanitised HTML inline, keeping the archive CORS restriction transparent to the browser.
+Stateless relative to the parent — the parent controls which frames are mounted. `TimeTravelView` already keys each `SnapshotFrame` by `snap.timestamp`, so React unmounts and remounts the component when the timestamp changes, giving a fresh `loaded`/`error` state without a `useEffect` reset.
 
 ### `GhostOverlay`
 
@@ -154,7 +174,7 @@ Owns the diff-fetch lifecycle: debounce timer, `AbortController`, loading/error/
 
 ### `NarratorPanel`
 
-Uses `useCompletion` from `ai/react`. Auto-fires on mount, cancels stream on unmount. Because the parent keys by year pair, there is no need for a separate "triggered" guard — every mount is a fresh narration.
+Uses `useCompletion` from `ai/react`. Auto-fires on mount, cancels stream on unmount via the `stop()` callback. Because the parent keys by year pair, every mount is a fresh narration.
 
 ---
 
@@ -172,20 +192,25 @@ Uses `useCompletion` from `ai/react`. Auto-fires on mount, cancels stream on unm
 ```
 Errors: 400 `INVALID_DOMAIN`, 404 `NO_SNAPSHOTS`, 502 `ARCHIVE_UNAVAILABLE`
 
-### `GET /api/snapshot?domain=&timestamp=`
+### `GET /api/snapshot?domain=&timestamp=&original=`
 
-Returns raw `text/html` with CSP and cache headers.  
-Errors: 400 `INVALID_DOMAIN` / `INVALID_TIMESTAMP`, 404 `SNAPSHOT_NOT_FOUND`, 502 `ARCHIVE_UNAVAILABLE`
+Returns raw `text/html` with headers:
+- `Content-Security-Policy: sandbox allow-popups allow-popups-to-escape-sandbox; script-src 'none'; object-src 'none'`
+- `X-Content-Type-Options: nosniff`
+- `Cache-Control: public, s-maxage=31536000, immutable`
 
-### `GET /api/diff?domain=&from=&to=`
+`original` is the CDX crawl URL; its hostname is validated against `domain` before use.  
+Errors: 400 `INVALID_DOMAIN` / `INVALID_TIMESTAMP` / hostname-mismatch, 404 `SNAPSHOT_NOT_FOUND`, 502 `ARCHIVE_UNAVAILABLE`
 
-Returns `FeatureDiff` JSON. See `lib/diff/diff-features.ts` for the full shape.  
-Errors: 400 `INVALID_DOMAIN` / `INVALID_TIMESTAMP` / same-timestamp, 404 `SNAPSHOT_NOT_FOUND`, 502 `ARCHIVE_UNAVAILABLE`
+### `GET /api/diff?domain=&from=&to=&fromOriginal=&toOriginal=`
+
+Returns `FeatureDiff` JSON. `fromOriginal` and `toOriginal` are the CDX `original` URLs for each timestamp; both hostnames are validated against `domain`.  
+Errors: 400 `INVALID_DOMAIN` / `INVALID_TIMESTAMP` / same-timestamp / hostname-mismatch, 404 `SNAPSHOT_NOT_FOUND`, 502 `ARCHIVE_UNAVAILABLE`
 
 ### `POST /api/narrate`
 
 Body: `{ domain: string, diff: FeatureDiff }`  
-Returns: Vercel AI SDK data stream.  
+Returns: Vercel AI SDK data stream (model: `claude-haiku-5-5` by default).  
 Errors: 400 (validation), 429 (rate limit), 503 (missing API key)
 
 ---
@@ -194,10 +219,13 @@ Errors: 400 (validation), 429 (rate limit), 503 (missing API key)
 
 | Threat | Mitigation |
 |---|---|
-| Archived HTML executing scripts | Sanitiser strips `<script>` + `<iframe>` + `<object>` etc.; CSP `script-src 'none'`; iframe `sandbox` |
+| Archived HTML executing scripts | Sanitiser strips `<script>` + `<iframe>` + `<object>` etc.; CSP `script-src 'none'`; iframe `sandbox` (no `allow-scripts`) |
+| Links in snapshots hijacking the page | Anchors rewritten to Wayback URLs + `target="_blank"`; popups allowed so tabs open; sandbox prevents navigation of parent |
 | `javascript:` / `data:text/html` navigation | Sanitiser neutralises these in all URL-bearing attributes |
 | Cross-origin archive requests (CORS) | All archive calls go through Next.js route handlers; browser never talks to archive directly |
+| `original` URL hostname spoofing | `validateOriginalUrl` checks that the CDX `original` hostname matches the validated domain before any Wayback fetch |
 | Open LLM relay / prompt injection | Zod schema caps string lengths + array sizes; domain validated before it reaches the prompt |
+| Oversized strings bypassing Zod | `extractFeatures` truncates to caps at extraction time — data never arrives at the API boundary over-length |
 | Credit exhaustion | Per-IP rate limiter (10 req/min) |
 | Localhost / IP domain bypass | `validateDomain` explicitly rejects these before any outbound call |
 | Secret leakage | API key comes from env only; never logged; never in client bundle |
@@ -208,31 +236,36 @@ Errors: 400 (validation), 429 (rate limit), 503 (missing API key)
 
 | Path | Purpose |
 |---|---|
-| `app/page.tsx` | Landing page, domain form, curated examples |
+| `app/page.tsx` | Landing page server component: form action, curated examples |
+| `app/LandingForm.tsx` | Client form with `useActionState` for inline validation errors |
 | `app/layout.tsx` | Root HTML shell, global CSS |
 | `app/globals.css` | Tailwind directives + CSS custom properties |
-| `app/[domain]/page.tsx` | Server component: validate + fetch snapshots |
+| `app/[domain]/page.tsx` | Server component: validate + fetch snapshots, error states |
 | `app/[domain]/loading.tsx` | Suspense loading state |
 | `app/[domain]/TimeTravelView.tsx` | Interactive client shell |
 | `app/api/snapshots/route.ts` | CDX year list endpoint |
 | `app/api/snapshot/route.ts` | Sanitised HTML endpoint |
 | `app/api/diff/route.ts` | Feature diff endpoint |
 | `app/api/narrate/route.ts` | Streaming narrator endpoint |
-| `components/TimeSlider.tsx` | Year scrubber |
-| `components/SnapshotFrame.tsx` | Sandboxed iframe wrapper |
+| `components/TimeSlider.tsx` | Year scrubber with single-snapshot guard |
+| `components/SnapshotFrame.tsx` | Sandboxed iframe wrapper (allow-popups) |
 | `components/GhostOverlay.tsx` | Diff overlay + ghost labels |
 | `components/NarratorPanel.tsx` | Streaming AI narration panel |
 | `lib/errors.ts` | Typed errors + HTTP mapping |
-| `lib/curated-examples.ts` | Shared example domain list |
+| `lib/curated-examples.ts` | Shared example domain list (page + warm script) |
 | `lib/validation/domain.ts` | Hostname validator |
-| `lib/wayback/cdx.ts` | CDX client + in-memory cache |
+| `lib/wayback/cdx.ts` | CDX client + in-memory cache + `_clearCacheForTest` |
 | `lib/wayback/fetch-snapshot.ts` | Raw HTML fetcher |
 | `lib/wayback/rewrite-urls.ts` | Asset + anchor URL rewriter |
+| `lib/wayback/validate-original.ts` | CDX `original` URL hostname validation |
 | `lib/sanitize/sanitize.ts` | HTML sanitiser |
-| `lib/diff/extract-features.ts` | HTML → `PageFeatures` extractor |
+| `lib/diff/caps.ts` | Shared `MAX_STRING` / `MAX_ARRAY` constants |
+| `lib/diff/extract-features.ts` | HTML → `PageFeatures` extractor (applies caps) |
 | `lib/diff/diff-features.ts` | `PageFeatures` × 2 → `FeatureDiff` |
 | `lib/narrator/build-prompt.ts` | `FeatureDiff` → Claude prompt |
-| `lib/narrator/schema.ts` | Zod schema for narrator request body |
-| `lib/narrator/rate-limit.ts` | Per-IP in-memory rate limiter |
-| `scripts/warm.ts` | Demo pre-warm script |
+| `lib/narrator/schema.ts` | Zod schema (imports caps from `lib/diff/caps.ts`) |
+| `lib/narrator/rate-limit.ts` | Per-IP in-memory rate limiter (`RateLimiter` exported) |
+| `scripts/warm.ts` | Demo pre-warm script (imports `CURATED_EXAMPLES`) |
+| `eslint.config.mjs` | Flat ESLint config (native `eslint-config-next` v16 exports) |
+| `vercel.json` | Serverless function `maxDuration: 60` for all API routes |
 | `.env.local.example` | Required env var documentation |

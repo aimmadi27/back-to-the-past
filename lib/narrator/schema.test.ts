@@ -71,7 +71,8 @@ describe("narrateBodySchema", () => {
   });
 
   it("rejects malformed diff (missing required field)", () => {
-    const { titleChanged: _, ...incompleteDiff } = validDiff;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { titleChanged: _omit, ...incompleteDiff } = validDiff;
     const result = narrateBodySchema.safeParse({ diff: incompleteDiff, domain: "example.com" });
     expect(result.success).toBe(false);
   });

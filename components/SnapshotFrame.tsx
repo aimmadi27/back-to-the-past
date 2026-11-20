@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 interface SnapshotFrameProps {
   domain: string;
   timestamp: string;
+  /** The CDX `original` URL for this snapshot (e.g. "http://www.example.com/"). */
+  original: string;
   year: number;
   /** When true, this frame fades in (crossfade effect). */
   active: boolean;
@@ -20,6 +22,7 @@ interface SnapshotFrameProps {
 export default function SnapshotFrame({
   domain,
   timestamp,
+  original,
   year,
   active,
 }: SnapshotFrameProps) {
@@ -27,13 +30,14 @@ export default function SnapshotFrame({
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const src = `/api/snapshot?domain=${encodeURIComponent(domain)}&timestamp=${encodeURIComponent(timestamp)}`;
+  const src =
+    `/api/snapshot` +
+    `?domain=${encodeURIComponent(domain)}` +
+    `&timestamp=${encodeURIComponent(timestamp)}` +
+    `&original=${encodeURIComponent(original)}`;
 
-  useEffect(() => {
-    // Reset state when the snapshot changes
-    setLoaded(false);
-    setError(null);
-  }, [timestamp]);
+  // No reset effect needed — TimeTravelView keys this component by timestamp,
+  // so React unmounts+remounts it when the snapshot changes, giving us fresh state.
 
   return (
     <div
@@ -71,8 +75,9 @@ export default function SnapshotFrame({
         title={`${domain} in ${year}`}
         className="w-full h-full border-0"
         // Sandboxed: allow-same-origin lets relative URLs resolve;
-        // allow-popups-to-escape-sandbox is intentionally omitted.
-        sandbox="allow-same-origin allow-forms"
+        // allow-popups + allow-popups-to-escape-sandbox let rewritten links
+        // open in new tabs. Scripts remain blocked (no allow-scripts).
+        sandbox="allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
         onLoad={() => setLoaded(true)}
         onError={() => setError("Could not load this snapshot.")}
         loading="lazy"
