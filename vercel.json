@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "app/api/snapshots/route.ts": { "maxDuration": 60 },
+    "app/api/snapshot/route.ts": { "maxDuration": 60 },
+    "app/api/diff/route.ts": { "maxDuration": 60 },
+    "app/api/narrate/route.ts": { "maxDuration": 60 }
+  }
+}

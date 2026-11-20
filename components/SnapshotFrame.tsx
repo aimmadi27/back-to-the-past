@@ -5,6 +5,8 @@ import { useRef, useState } from "react";
 interface SnapshotFrameProps {
   domain: string;
   timestamp: string;
+  /** The CDX `original` URL for this snapshot (e.g. "http://www.example.com/"). */
+  original: string;
   year: number;
   /** When true, this frame fades in (crossfade effect). */
   active: boolean;
@@ -20,6 +22,7 @@ interface SnapshotFrameProps {
 export default function SnapshotFrame({
   domain,
   timestamp,
+  original,
   year,
   active,
 }: SnapshotFrameProps) {
@@ -27,7 +30,11 @@ export default function SnapshotFrame({
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const src = `/api/snapshot?domain=${encodeURIComponent(domain)}&timestamp=${encodeURIComponent(timestamp)}`;
+  const src =
+    `/api/snapshot` +
+    `?domain=${encodeURIComponent(domain)}` +
+    `&timestamp=${encodeURIComponent(timestamp)}` +
+    `&original=${encodeURIComponent(original)}`;
 
   // No reset effect needed — TimeTravelView keys this component by timestamp,
   // so React unmounts+remounts it when the snapshot changes, giving us fresh state.

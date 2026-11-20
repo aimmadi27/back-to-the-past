@@ -51,8 +51,7 @@ All tasks in this spec are **completed**. This file documents what was built and
 
 ## 6. URL Rewriter ✅
 
-- [x] `lib/wayback/rewrite-urls.ts` — `rewriteAssetUrls()` rewrites `<img src>`, `<link href>`, `<script src>`, `<source src>`, inline `style` background URLs to Wayback CDX modifiers
-- [x] `<a href>` rewritten to Wayback `id_` URLs with `target="_blank" rel="noopener noreferrer"`
+- [x] `lib/wayback/rewrite-urls.ts` — `rewriteAssetUrls()` rewrites `<img src>`, `<link href>`, `<script src>`, `<source src>`, inline `style` background URLs to Wayback CDX modifiers; `<a href>` rewritten to Wayback `id_` URLs with `target="_blank" rel="noopener noreferrer"`
 - [x] `lib/wayback/rewrite-urls.test.ts` — 5 tests covering img, CSS, data URIs, Wayback URLs (no double-wrap), absolute src
 
 ---
@@ -64,7 +63,14 @@ All tasks in this spec are **completed**. This file documents what was built and
 
 ---
 
-## 8. Shared Caps Module ✅
+## 8. Original URL Validation ✅
+
+- [x] `lib/wayback/validate-original.ts` — `validateOriginalUrl(original, validDomain)` accepts only HTTP/HTTPS URLs whose hostname matches the validated domain (exact, `www.` prefix, or subdomain); throws `InvalidDomainError` otherwise
+- [x] `lib/wayback/validate-original.test.ts` — 10 tests: exact match, https, www prefix, subdomain, empty, non-URL, javascript: scheme, wrong domain, path-segment trick, data: URI
+
+---
+
+## 9. Shared Caps Module ✅
 
 - [x] `lib/diff/caps.ts` — exports `MAX_STRING = 200` and `MAX_ARRAY = 20`
 - [x] `extractFeatures` imports caps and truncates all strings/arrays at extraction time
@@ -72,7 +78,7 @@ All tasks in this spec are **completed**. This file documents what was built and
 
 ---
 
-## 9. Feature Extraction + Diff ✅
+## 10. Feature Extraction + Diff ✅
 
 - [x] `lib/diff/extract-features.ts` — `extractFeatures()` returning `PageFeatures`; tech detection from concrete signals only; all strings truncated to `MAX_STRING`, arrays to `MAX_ARRAY`
 - [x] `lib/diff/extract-features.test.ts` — 24 tests: each tech signal, negatives, Flash rules, basic field extraction, truncation to `MAX_STRING`, array cap, end-to-end schema compatibility test
@@ -81,7 +87,7 @@ All tasks in this spec are **completed**. This file documents what was built and
 
 ---
 
-## 10. Narrator ✅
+## 11. Narrator ✅
 
 - [x] `lib/narrator/build-prompt.ts` — `buildNarratorPrompt()` builds system + user prompt from `FeatureDiff`; instructs model to describe only listed changes
 - [x] `lib/narrator/build-prompt.test.ts` — 6 tests: domain/years in prompt, Flash, headings, title, no-change fallback, anti-hallucination instruction
@@ -92,16 +98,16 @@ All tasks in this spec are **completed**. This file documents what was built and
 
 ---
 
-## 11. API Route Handlers ✅
+## 12. API Route Handlers ✅
 
 - [x] `app/api/snapshots/route.ts` — thin: validate → `fetchYearlySnapshots` → JSON; 1h CDN cache header
-- [x] `app/api/snapshot/route.ts` — validate → fetch → rewrite → sanitise → HTML; CSP (`sandbox allow-popups allow-popups-to-escape-sandbox; script-src 'none'; object-src 'none'`) + `nosniff` + 1-year immutable cache; uses `InvalidTimestampError`
-- [x] `app/api/diff/route.ts` — validate → parallel fetch → extract × 2 → diff → JSON; blocks same-timestamp; 1-year immutable cache; uses `InvalidTimestampError`
-- [x] `app/api/narrate/route.ts` — API key check → rate limit → Zod validate → build prompt → `streamText` with model from `NARRATOR_MODEL` env (default `claude-haiku-5-5`) → data stream response
+- [x] `app/api/snapshot/route.ts` — accepts `original` param; validates hostname via `validateOriginalUrl`; fetch → rewrite → sanitise → HTML; CSP + `nosniff` + 1-year immutable cache
+- [x] `app/api/diff/route.ts` — accepts `fromOriginal` + `toOriginal`; validates both via `validateOriginalUrl`; parallel fetch → extract × 2 → diff → JSON; blocks same-timestamp; 1-year immutable cache
+- [x] `app/api/narrate/route.ts` — API key check → rate limit → Zod validate → build prompt → `streamText` (model from `NARRATOR_MODEL` env, default `claude-haiku-5-5`) → data stream response
 
 ---
 
-## 12. App Pages ✅
+## 13. App Pages ✅
 
 - [x] `app/globals.css` — Tailwind directives, CSS custom properties for pumpkin/ghost/bone/void colours, custom scrollbar
 - [x] `app/layout.tsx` — root HTML, metadata, global CSS import
@@ -112,28 +118,27 @@ All tasks in this spec are **completed**. This file documents what was built and
 
 ---
 
-## 13. Client Components ✅
+## 14. Client Components ✅
 
-- [x] `components/TimeSlider.tsx` — dual-handle slider; instant year label feedback; debounced index commit; tick buttons; compare mode toggle; hides slider for single-snapshot domains (divide-by-zero fix)
-- [x] `components/SnapshotFrame.tsx` — sandboxed iframe with `allow-popups allow-popups-to-escape-sandbox`; loading/error states; crossfade via opacity; state reset handled by React key (no `useEffect` reset)
-- [x] `components/GhostOverlay.tsx` — debounced diff fetch (400ms); `AbortController` to discard stale responses; blocks same-timestamp compare; ghost label rendering with CSS fade animation
+- [x] `components/TimeSlider.tsx` — dual-handle slider; instant year label feedback; debounced index commit; tick buttons; compare mode toggle; single-snapshot guard; compare slider and tick buttons skip the current year index (no same-year comparison via UI)
+- [x] `components/SnapshotFrame.tsx` — accepts `original` prop; passes it to `/api/snapshot`; sandboxed iframe with `allow-popups allow-popups-to-escape-sandbox`; loading/error states; crossfade; state reset by React key
+- [x] `components/GhostOverlay.tsx` — accepts `fromOriginal` + `toOriginal`; passes them to `/api/diff`; debounced 400ms; `AbortController`; blocks same-timestamp; ghost label animation
 - [x] `components/NarratorPanel.tsx` — `useCompletion`; auto-starts on mount; cancels stream on unmount; "Tell it again" button; 503/error display
 
 ---
 
-## 14. TimeTravelView Client Shell ✅
+## 15. TimeTravelView Client Shell ✅
 
-- [x] `app/[domain]/TimeTravelView.tsx` — manages `committedIndex` / `pendingIndex` split (debounce); `prevIndex` for crossfade; stale diff cleared in event handlers (not effects, to satisfy `react-hooks/set-state-in-effect` lint rule); `NarratorPanel` keyed by year pair; mounts only current + previous + adjacent iframes
+- [x] `app/[domain]/TimeTravelView.tsx` — passes `snap.original` to `SnapshotFrame` and `GhostOverlay`; debounce cleanup `useEffect` on unmount; stale diff cleared in event handlers; `NarratorPanel` keyed by year pair; mounts only current + previous + adjacent iframes
 
 ---
 
-## 15. Developer Tooling ✅
+## 16. Developer Tooling & Deployment ✅
 
-- [x] `eslint.config.mjs` — flat config using native `eslint-config-next` v16 exports (`import nextVitals from "eslint-config-next/core-web-vitals"`); no `FlatCompat`
-- [x] `npm run lint` → `eslint .` — zero errors, zero warnings
-- [x] `scripts/warm.ts` — imports `CURATED_EXAMPLES` from `lib/curated-examples.ts` (no duplicate list); hits `/api/snapshots` for each domain; logs snapshot count
+- [x] `eslint.config.mjs` — flat config using native `eslint-config-next` v16 exports; no `FlatCompat`; zero errors/warnings
+- [x] `vercel.json` — `maxDuration: 60` on all four API routes (prevents 10s default timeout for slow Wayback responses)
+- [x] `scripts/warm.ts` — imports `CURATED_EXAMPLES` from `lib/curated-examples.ts`; hits `/api/snapshots` for each domain
 - [x] `npm run warm` → `tsx scripts/warm.ts`
-- [x] `tsx@4.19.4` added as dev dependency
 
 ---
 
@@ -146,13 +151,14 @@ All tasks in this spec are **completed**. This file documents what was built and
 | `lib/wayback/cdx.test.ts` | 8 |
 | `lib/wayback/fetch-snapshot.test.ts` | 6 |
 | `lib/wayback/rewrite-urls.test.ts` | 5 |
+| `lib/wayback/validate-original.test.ts` | 10 |
 | `lib/sanitize/sanitize.test.ts` | 13 |
 | `lib/diff/extract-features.test.ts` | 24 |
 | `lib/diff/diff-features.test.ts` | 6 |
 | `lib/narrator/build-prompt.test.ts` | 6 |
 | `lib/narrator/schema.test.ts` | 8 |
 | `lib/narrator/rate-limit.test.ts` | 4 |
-| **Total** | **104** |
+| **Total** | **114** |
 
 ---
 

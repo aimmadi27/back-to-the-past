@@ -63,12 +63,15 @@ User types domain and submits form
 
 ```
 TimeTravelView mounts committed iframe
-  → SnapshotFrame renders <iframe src="/api/snapshot?...">
+  → SnapshotFrame renders:
+      <iframe src="/api/snapshot?domain=&timestamp=&original=">
+      (original = snap.original from CDX data)
       → Route handler GET /api/snapshot
           → validateDomain + validateTimestamp
-          → fetchSnapshotHtml()                 [lib/wayback/fetch-snapshot]
-          → rewriteAssetUrls()                  [lib/wayback/rewrite-urls]
-          → sanitizeHtml()                      [lib/sanitize/sanitize]
+          → validateOriginalUrl(original, domain)   [lib/wayback/validate-original]
+          → fetchSnapshotHtml(domain, ts, original) [lib/wayback/fetch-snapshot]
+          → rewriteAssetUrls(html, ts, original)    [lib/wayback/rewrite-urls]
+          → sanitizeHtml()                          [lib/sanitize/sanitize]
           → Response(html, { CSP + nosniff headers })
 ```
 
@@ -77,7 +80,8 @@ TimeTravelView mounts committed iframe
 ```
 User toggles compare mode
   → GhostOverlay (debounced 400ms, AbortController)
-      → GET /api/diff?from=&to=
+      → GET /api/diff?from=&to=&fromOriginal=&toOriginal=
+          → validateOriginalUrl × 2               [lib/wayback/validate-original]
           → fetchSnapshotHtml() × 2 (parallel)
           → extractFeatures() × 2               [lib/diff/extract-features]
           → diffFeatures()                      [lib/diff/diff-features]
@@ -188,19 +192,20 @@ Uses `useCompletion` from `ai/react`. Auto-fires on mount, cancels stream on unm
 ```
 Errors: 400 `INVALID_DOMAIN`, 404 `NO_SNAPSHOTS`, 502 `ARCHIVE_UNAVAILABLE`
 
-### `GET /api/snapshot?domain=&timestamp=`
+### `GET /api/snapshot?domain=&timestamp=&original=`
 
 Returns raw `text/html` with headers:
 - `Content-Security-Policy: sandbox allow-popups allow-popups-to-escape-sandbox; script-src 'none'; object-src 'none'`
 - `X-Content-Type-Options: nosniff`
 - `Cache-Control: public, s-maxage=31536000, immutable`
 
-Errors: 400 `INVALID_DOMAIN` / `INVALID_TIMESTAMP`, 404 `SNAPSHOT_NOT_FOUND`, 502 `ARCHIVE_UNAVAILABLE`
+`original` is the CDX crawl URL; its hostname is validated against `domain` before use.  
+Errors: 400 `INVALID_DOMAIN` / `INVALID_TIMESTAMP` / hostname-mismatch, 404 `SNAPSHOT_NOT_FOUND`, 502 `ARCHIVE_UNAVAILABLE`
 
-### `GET /api/diff?domain=&from=&to=`
+### `GET /api/diff?domain=&from=&to=&fromOriginal=&toOriginal=`
 
-Returns `FeatureDiff` JSON. See `lib/diff/diff-features.ts` for the full shape.  
-Errors: 400 `INVALID_DOMAIN` / `INVALID_TIMESTAMP` / same-timestamp, 404 `SNAPSHOT_NOT_FOUND`, 502 `ARCHIVE_UNAVAILABLE`
+Returns `FeatureDiff` JSON. `fromOriginal` and `toOriginal` are the CDX `original` URLs for each timestamp; both hostnames are validated against `domain`.  
+Errors: 400 `INVALID_DOMAIN` / `INVALID_TIMESTAMP` / same-timestamp / hostname-mismatch, 404 `SNAPSHOT_NOT_FOUND`, 502 `ARCHIVE_UNAVAILABLE`
 
 ### `POST /api/narrate`
 
@@ -218,6 +223,7 @@ Errors: 400 (validation), 429 (rate limit), 503 (missing API key)
 | Links in snapshots hijacking the page | Anchors rewritten to Wayback URLs + `target="_blank"`; popups allowed so tabs open; sandbox prevents navigation of parent |
 | `javascript:` / `data:text/html` navigation | Sanitiser neutralises these in all URL-bearing attributes |
 | Cross-origin archive requests (CORS) | All archive calls go through Next.js route handlers; browser never talks to archive directly |
+| `original` URL hostname spoofing | `validateOriginalUrl` checks that the CDX `original` hostname matches the validated domain before any Wayback fetch |
 | Open LLM relay / prompt injection | Zod schema caps string lengths + array sizes; domain validated before it reaches the prompt |
 | Oversized strings bypassing Zod | `extractFeatures` truncates to caps at extraction time — data never arrives at the API boundary over-length |
 | Credit exhaustion | Per-IP rate limiter (10 req/min) |
@@ -251,6 +257,7 @@ Errors: 400 (validation), 429 (rate limit), 503 (missing API key)
 | `lib/wayback/cdx.ts` | CDX client + in-memory cache + `_clearCacheForTest` |
 | `lib/wayback/fetch-snapshot.ts` | Raw HTML fetcher |
 | `lib/wayback/rewrite-urls.ts` | Asset + anchor URL rewriter |
+| `lib/wayback/validate-original.ts` | CDX `original` URL hostname validation |
 | `lib/sanitize/sanitize.ts` | HTML sanitiser |
 | `lib/diff/caps.ts` | Shared `MAX_STRING` / `MAX_ARRAY` constants |
 | `lib/diff/extract-features.ts` | HTML → `PageFeatures` extractor (applies caps) |
@@ -260,4 +267,5 @@ Errors: 400 (validation), 429 (rate limit), 503 (missing API key)
 | `lib/narrator/rate-limit.ts` | Per-IP in-memory rate limiter (`RateLimiter` exported) |
 | `scripts/warm.ts` | Demo pre-warm script (imports `CURATED_EXAMPLES`) |
 | `eslint.config.mjs` | Flat ESLint config (native `eslint-config-next` v16 exports) |
+| `vercel.json` | Serverless function `maxDuration: 60` for all API routes |
 | `.env.local.example` | Required env var documentation |

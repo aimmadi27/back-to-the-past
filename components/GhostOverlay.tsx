@@ -6,7 +6,9 @@ import type { FeatureDiff } from "@/lib/diff/diff-features";
 interface GhostOverlayProps {
   domain: string;
   fromTimestamp: string;
+  fromOriginal: string;
   toTimestamp: string;
+  toOriginal: string;
   fromYear: number;
   toYear: number;
   onDiffReady: (diff: FeatureDiff) => void;
@@ -24,7 +26,9 @@ const DEBOUNCE_MS = 400;
 export default function GhostOverlay({
   domain,
   fromTimestamp,
+  fromOriginal,
   toTimestamp,
+  toOriginal,
   fromYear,
   toYear,
   onDiffReady,
@@ -54,7 +58,13 @@ export default function GhostOverlay({
     setError(null);
     setLoading(true);
 
-    const params = new URLSearchParams({ domain, from: fromTimestamp, to: toTimestamp });
+    const params = new URLSearchParams({
+      domain,
+      from: fromTimestamp,
+      to: toTimestamp,
+      fromOriginal,
+      toOriginal,
+    });
 
     fetch(`/api/diff?${params.toString()}`, { signal: controller.signal })
       .then((res) => {
@@ -72,7 +82,7 @@ export default function GhostOverlay({
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
-  }, [domain, fromTimestamp, toTimestamp, onDiffReady]);
+  }, [domain, fromTimestamp, fromOriginal, toTimestamp, toOriginal, onDiffReady]);
 
   useEffect(() => {
     // Debounce — don't fire on every intermediate slider position

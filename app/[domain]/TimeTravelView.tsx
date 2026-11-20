@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
 import type { Snapshot } from "@/lib/wayback/cdx";
 import type { FeatureDiff } from "@/lib/diff/diff-features";
@@ -24,7 +24,7 @@ interface TimeTravelViewProps {
 export default function TimeTravelView({ domain, snapshots }: TimeTravelViewProps) {
   // "committed" index is what actually loads an iframe
   const [committedIndex, setCommittedIndex] = useState(snapshots.length - 1);
-  // "pending" index tracks the slider position while dragging
+  // "pending" index tracks the slider position while dragging (instant label feedback)
   const [pendingIndex, setPendingIndex] = useState(snapshots.length - 1);
   const [prevIndex, setPrevIndex] = useState<number | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -32,28 +32,31 @@ export default function TimeTravelView({ domain, snapshots }: TimeTravelViewProp
   const [compareIndex, setCompareIndex] = useState<number | null>(null);
   const [activeDiff, setActiveDiff] = useState<FeatureDiff | null>(null);
 
-  // Debounce: update pending immediately (shows year label), commit after 250ms.
-  // When committed index advances in compare mode, also clear the stale diff so
-  // the narrator re-narrates — done here in the event handler, not an effect.
-  const handleIndexChange = useCallback(
-    (index: number) => {
-      setPendingIndex(index);
+  // Cancel pending debounce timer on unmount to prevent setState on unmounted component
+  useEffect(() => {
+    return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
-        setCommittedIndex((prev) => {
-          if (prev !== index) {
-            // Year changed while in compare mode — diff is now stale
-            setActiveDiff(null);
-          }
-          setPrevIndex(prev);
-          return index;
-        });
-      }, 250);
-    },
-    []
-  );
+    };
+  }, []);
 
-  // Clear activeDiff whenever the compare config changes so narration refreshes
+  // Debounce: update pending immediately (shows year label), commit after 250ms.
+  // Also clears stale diff in the updater callback when the year actually changes.
+  const handleIndexChange = useCallback((index: number) => {
+    setPendingIndex(index);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setCommittedIndex((prev) => {
+        if (prev !== index) {
+          setActiveDiff(null);
+        }
+        setPrevIndex(prev);
+        return index;
+      });
+    }, 250);
+  }, []);
+
+  // Clear activeDiff whenever compare config changes so narration always reflects
+  // the current pair.
   const handleCompareIndexChange = useCallback((index: number | null) => {
     setCompareIndex(index);
     setActiveDiff(null);
@@ -98,6 +101,7 @@ export default function TimeTravelView({ domain, snapshots }: TimeTravelViewProp
                 key={snap.timestamp}
                 domain={domain}
                 timestamp={snap.timestamp}
+                original={snap.original}
                 year={snap.year}
                 active={i === committedIndex}
               />
@@ -109,7 +113,9 @@ export default function TimeTravelView({ domain, snapshots }: TimeTravelViewProp
             <GhostOverlay
               domain={domain}
               fromTimestamp={compareSnapshot.timestamp}
+              fromOriginal={compareSnapshot.original}
               toTimestamp={currentSnapshot.timestamp}
+              toOriginal={currentSnapshot.original}
               fromYear={compareSnapshot.year}
               toYear={currentSnapshot.year}
               onDiffReady={handleDiffReady}

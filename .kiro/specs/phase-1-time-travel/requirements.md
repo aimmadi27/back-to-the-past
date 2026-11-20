@@ -45,11 +45,12 @@ Back to the Past is a Kiroween hackathon entry in the "Resurrection" category. U
 **FR-5.2** The slider position is debounced 250 ms before committing a year load, so dragging quickly does not fire a request per year.  
 **FR-5.3** Year label feedback is instant (before the debounce fires) so the user sees the year update while dragging.  
 **FR-5.4** When only one snapshot exists, the slider is hidden and the single year is shown as a label.  
-**FR-5.5** A "Compare years" toggle activates a second slider handle that picks the "from" year for the ghost diff.
+**FR-5.5** A "Compare years" toggle activates a second slider handle that picks the "from" year for the ghost diff.  
+**FR-5.6** The compare slider and tick buttons cannot be set to the same index as the current year — the UI skips that value, so a same-year comparison is never initiated.
 
 ### FR-6 Snapshot Rendering
 
-**FR-6.1** The `/api/snapshot?domain=&timestamp=` endpoint fetches the raw archived HTML using the Wayback `id_` modifier (no toolbar).  
+**FR-6.1** The `/api/snapshot?domain=&timestamp=&original=` endpoint fetches the raw archived HTML using the Wayback `id_` modifier (no toolbar). The `original` parameter is the CDX crawl URL and must be provided; its hostname is validated to match `domain` before use.  
 **FR-6.2** Asset URLs (images, CSS, scripts) are rewritten to Wayback `im_`, `cs_`, and `if_` modifiers so they load correctly.  
 **FR-6.3** Anchor links are rewritten to Wayback `id_` URLs and given `target="_blank" rel="noopener noreferrer"` so they open in new tabs rather than navigating the iframe.  
 **FR-6.4** The HTML is sanitised (see FR-7) before being served.  
@@ -71,7 +72,7 @@ Back to the Past is a Kiroween hackathon entry in the "Resurrection" category. U
 
 ### FR-8 Ghost Diff
 
-**FR-8.1** The `/api/diff?domain=&from=&to=` endpoint fetches both snapshots, extracts structured features from each, and returns a typed `FeatureDiff` JSON object.  
+**FR-8.1** The `/api/diff?domain=&from=&to=&fromOriginal=&toOriginal=` endpoint fetches both snapshots using their CDX `original` URLs, extracts structured features from each, and returns a typed `FeatureDiff` JSON object. `fromOriginal` and `toOriginal` hostnames are validated to match `domain` before use.  
 **FR-8.2** Features extracted include: title, h1-h3 headings, nav/header links, paragraph copy, image alt texts, inline CSS colours, tech stack hints, meta description, Flash presence, iframe presence, link count, image count.  
 **FR-8.3** Tech stack detection uses only concrete signals: `<script src>` filename patterns, `<link href>` filename patterns, `<meta name="generator">`, `wp-content` paths in src/href attributes, and `.swf` in `<object>`/`<embed>`. It never matches free text in the page body.  
 **FR-8.4** Flash detection uses one shared rule for both `hasFlash` and the `techHints` array.  
@@ -110,6 +111,14 @@ Back to the Past is a Kiroween hackathon entry in the "Resurrection" category. U
 **FR-12.3** `npm run test` runs the Vitest suite once.  
 **FR-12.4** `npm run lint` runs ESLint using the flat config (`eslint-config-next` v16 native flat exports — no `FlatCompat`).  
 **FR-12.5** `npm run warm` hits `/api/snapshots` for each domain in `CURATED_EXAMPLES` so responses are cached before a demo. The script imports from `lib/curated-examples.ts` — no duplicate list.
+
+### FR-13 Deployment Config
+
+**FR-13.1** A `vercel.json` sets `maxDuration: 60` on all four API routes so slow Wayback Machine responses (CDX, snapshot fetch, diff fetch) do not hit Vercel's default 10 s function timeout.
+
+### FR-14 Original URL Validation
+
+**FR-14.1** A `lib/wayback/validate-original.ts` module exports `validateOriginalUrl(original, validDomain)`. It accepts the CDX `original` URL only if it is a valid HTTP/HTTPS URL whose hostname exactly matches, or is a subdomain of, the validated domain. Any other value throws `InvalidDomainError` (→ 400).
 
 ---
 
