@@ -6,11 +6,11 @@ All tasks in this spec are **completed**. This file documents what was built and
 
 ## 1. Project Bootstrap ✅
 
-- [x] Scaffold `package.json` with Next.js 16, React 19, TypeScript strict, Tailwind CSS, Vitest, Cheerio, Vercel AI SDK, `@ai-sdk/anthropic`, Zod
+- [x] Scaffold `package.json` with Next.js 16, React 19, TypeScript strict, Tailwind CSS, Vitest, Cheerio, Vercel AI SDK, `@ai-sdk/anthropic` (and `@ai-sdk/google`, added by `narrator-llm-provider`), Zod
 - [x] Create `tsconfig.json` (App Router, strict, path alias `@/*`)
 - [x] Create `tailwind.config.ts` with custom colors (`pumpkin`, `ghost`, `bone`) and keyframe animations (`fade-ghost`, `crossfade-in`)
 - [x] Create `postcss.config.mjs`, `next.config.ts`, `vitest.config.ts`
-- [x] Create `.env.local.example` documenting `ANTHROPIC_API_KEY` and `NARRATOR_MODEL`
+- [x] Create `.env.local.example` documenting the narrator env vars (now `NARRATOR_PROVIDER`, `GOOGLE_GENERATIVE_AI_API_KEY`, `ANTHROPIC_API_KEY`, `NARRATOR_MODEL`; see `narrator-llm-provider`)
 - [x] Create `.gitignore`
 - [x] Install `zod@3.25.75` (required by `zod-to-json-schema` nested dep in AI SDK)
 
@@ -103,7 +103,7 @@ All tasks in this spec are **completed**. This file documents what was built and
 - [x] `app/api/snapshots/route.ts` — thin: validate → `fetchYearlySnapshots` → JSON; 1h CDN cache header
 - [x] `app/api/snapshot/route.ts` — accepts `original` param; validates hostname via `validateOriginalUrl`; fetch → rewrite → sanitise → HTML; CSP + `nosniff` + 1-year immutable cache
 - [x] `app/api/diff/route.ts` — accepts `fromOriginal` + `toOriginal`; validates both via `validateOriginalUrl`; parallel fetch → extract × 2 → diff → JSON; blocks same-timestamp; 1-year immutable cache
-- [x] `app/api/narrate/route.ts` — API key check → rate limit → Zod validate → build prompt → `streamText` (model from `NARRATOR_MODEL` env, default `claude-haiku-5-5`) → data stream response
+- [x] `app/api/narrate/route.ts` — resolve model via `getNarratorModel` (503 if provider unknown or its key missing; see `narrator-llm-provider`) → rate limit → Zod validate → build prompt → `streamText` → data stream response
 
 ---
 
@@ -146,7 +146,7 @@ All tasks in this spec are **completed**. This file documents what was built and
 
 | File | Tests |
 |---|---|
-| `lib/errors.test.ts` | 13 |
+| `lib/errors.test.ts` | 18 |
 | `lib/validation/domain.test.ts` | 11 |
 | `lib/wayback/cdx.test.ts` | 8 |
 | `lib/wayback/fetch-snapshot.test.ts` | 6 |
@@ -158,7 +158,9 @@ All tasks in this spec are **completed**. This file documents what was built and
 | `lib/narrator/build-prompt.test.ts` | 6 |
 | `lib/narrator/schema.test.ts` | 8 |
 | `lib/narrator/rate-limit.test.ts` | 4 |
-| **Total** | **114** |
+| `lib/narrator/model.test.ts` | 24 |
+| `lib/narrator/error-message.test.ts` | 5 |
+| **Total** | **148** |
 
 ---
 

@@ -5,6 +5,8 @@ import {
   NoSnapshotsError,
   ArchiveUnavailableError,
   SnapshotNotFoundError,
+  NarratorNotConfiguredError,
+  UnknownNarratorProviderError,
   errorToStatus,
   errorToJson,
 } from "./errors";
@@ -72,5 +74,43 @@ describe("errorToJson", () => {
     const result = errorToJson(new Error("oops"));
     expect(result.error).toBe("An unexpected error occurred.");
     expect(result.code).toBeUndefined();
+  });
+});
+
+describe("narrator configuration errors", () => {
+  it("NarratorNotConfiguredError has code, name and names the variable", () => {
+    const err = new NarratorNotConfiguredError("google", "GOOGLE_GENERATIVE_AI_API_KEY");
+    expect(err.code).toBe("NARRATOR_NOT_CONFIGURED");
+    expect(err.name).toBe("NarratorNotConfiguredError");
+    expect(err.message).toContain("GOOGLE_GENERATIVE_AI_API_KEY");
+    expect(err.message).toContain("google");
+  });
+
+  it("UnknownNarratorProviderError has code, name, the value and supported names", () => {
+    const err = new UnknownNarratorProviderError("openai", ["google", "anthropic"]);
+    expect(err.code).toBe("UNKNOWN_NARRATOR_PROVIDER");
+    expect(err.name).toBe("UnknownNarratorProviderError");
+    expect(err.message).toContain("openai");
+    expect(err.message).toContain("google");
+    expect(err.message).toContain("anthropic");
+  });
+
+  it("UnknownNarratorProviderError truncates a long provider name to 50 characters", () => {
+    const long = "x".repeat(200);
+    const err = new UnknownNarratorProviderError(long, ["google"]);
+    expect(err.message).toContain("x".repeat(50));
+    expect(err.message).not.toContain("x".repeat(51));
+  });
+
+  it("maps both configuration errors to 503", () => {
+    expect(errorToStatus(new NarratorNotConfiguredError("google", "K"))).toBe(503);
+    expect(errorToStatus(new UnknownNarratorProviderError("nope", ["google"]))).toBe(503);
+  });
+
+  it("serialises both configuration errors with error and code", () => {
+    const a = new NarratorNotConfiguredError("anthropic", "ANTHROPIC_API_KEY");
+    const b = new UnknownNarratorProviderError("nope", ["google"]);
+    expect(errorToJson(a)).toEqual({ error: a.message, code: "NARRATOR_NOT_CONFIGURED" });
+    expect(errorToJson(b)).toEqual({ error: b.message, code: "UNKNOWN_NARRATOR_PROVIDER" });
   });
 });

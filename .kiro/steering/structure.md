@@ -19,7 +19,7 @@ lib/
   wayback/                    # CDX client, snapshot fetch, URL rewriting
   sanitize/                   # script/handler stripping
   diff/                       # HTML → feature extraction, feature diffing
-  narrator/                   # prompt building
+  narrator/                   # prompt building, model/provider registry
   validation/                 # domain validation
 components/
   TimeSlider.tsx

@@ -82,10 +82,10 @@ Back to the Past is a Kiroween hackathon entry in the "Resurrection" category. U
 
 ### FR-9 AI Narrator
 
-**FR-9.1** The `/api/narrate` endpoint accepts `{ diff: FeatureDiff, domain: string }` and streams a Claude response via the Vercel AI SDK.  
+**FR-9.1** The `/api/narrate` endpoint accepts `{ diff: FeatureDiff, domain: string }` and streams an LLM response via the Vercel AI SDK. *(Refined by the `narrator-llm-provider` spec: the provider is configurable, Google Gemini by default.)*  
 **FR-9.2** The narrator prompt is built from the structured diff only — it instructs the model to describe only changes present in the diff and not to invent content.  
-**FR-9.3** The model ID is read from the `NARRATOR_MODEL` environment variable, defaulting to `claude-haiku-5-5`.  
-**FR-9.4** If `ANTHROPIC_API_KEY` is not set, the route returns 503 with a clear JSON error message.  
+**FR-9.3** The model ID is read from the `NARRATOR_MODEL` environment variable, defaulting to the selected provider's default (`gemini-4-hydrogen` for `google`, `claude-haiku-5-5` for `anthropic`). *(Refined by `narrator-llm-provider`.)*  
+**FR-9.4** If the selected provider's API key (`GOOGLE_GENERATIVE_AI_API_KEY` by default, `ANTHROPIC_API_KEY` for `anthropic`) is not set, the route returns 503 with a clear JSON error message. *(Refined by `narrator-llm-provider`.)*  
 **FR-9.5** The request body is validated with a Zod schema: `domain` passes `validateDomain`, all string fields are capped at 200 chars, all arrays at 20 items. Invalid bodies return 400.  
 **FR-9.6** A per-IP in-memory rate limiter (10 requests/minute) returns 429 when exceeded.  
 **FR-9.7** `NarratorPanel` auto-starts narration on mount and cancels any in-flight stream on unmount.  

@@ -20,7 +20,7 @@ API Routes (Next.js Route Handlers)
   ├── /api/snapshots    GET  CDX year list
   ├── /api/snapshot     GET  Sanitised archived HTML
   ├── /api/diff         GET  Structured feature diff
-  └── /api/narrate      POST Streaming Claude narration
+  └── /api/narrate      POST Streaming LLM narration (provider set by lib/narrator/model.ts)
 
 lib/ (Pure functions, no framework coupling)
   ├── errors.ts                 Typed error classes + serialisation
@@ -36,7 +36,7 @@ lib/ (Pure functions, no framework coupling)
   │     ├── extract-features.ts HTML → PageFeatures (truncates to caps)
   │     └── diff-features.ts    PageFeatures × 2 → FeatureDiff
   └── narrator/
-        ├── build-prompt.ts     FeatureDiff → Claude prompt
+        ├── build-prompt.ts     FeatureDiff → LLM prompt
         ├── schema.ts           Zod validation for /api/narrate body (imports caps)
         └── rate-limit.ts       Per-IP in-memory rate limiter
 ```
@@ -94,7 +94,7 @@ User toggles compare mode
           → Zod validation (narrateBodySchema)
           → rate limiter check
           → buildNarratorPrompt(diff, domain)   [lib/narrator/build-prompt]
-          → streamText(claude-haiku-5-5)         [Vercel AI SDK]
+          → getNarratorModel(process.env) → streamText(...)  [Vercel AI SDK; default gemini-4-hydrogen]
           → data stream response
       → useCompletion() streams text into panel
 ```
@@ -210,7 +210,7 @@ Errors: 400 `INVALID_DOMAIN` / `INVALID_TIMESTAMP` / same-timestamp / hostname-m
 ### `POST /api/narrate`
 
 Body: `{ domain: string, diff: FeatureDiff }`  
-Returns: Vercel AI SDK data stream (model: `claude-haiku-5-5` by default).  
+Returns: Vercel AI SDK data stream (default model `gemini-4-hydrogen`; provider and model are configurable, see the `narrator-llm-provider` spec).  
 Errors: 400 (validation), 429 (rate limit), 503 (missing API key)
 
 ---
@@ -262,7 +262,7 @@ Errors: 400 (validation), 429 (rate limit), 503 (missing API key)
 | `lib/diff/caps.ts` | Shared `MAX_STRING` / `MAX_ARRAY` constants |
 | `lib/diff/extract-features.ts` | HTML → `PageFeatures` extractor (applies caps) |
 | `lib/diff/diff-features.ts` | `PageFeatures` × 2 → `FeatureDiff` |
-| `lib/narrator/build-prompt.ts` | `FeatureDiff` → Claude prompt |
+| `lib/narrator/build-prompt.ts` | `FeatureDiff` → LLM prompt |
 | `lib/narrator/schema.ts` | Zod schema (imports caps from `lib/diff/caps.ts`) |
 | `lib/narrator/rate-limit.ts` | Per-IP in-memory rate limiter (`RateLimiter` exported) |
 | `scripts/warm.ts` | Demo pre-warm script (imports `CURATED_EXAMPLES`) |

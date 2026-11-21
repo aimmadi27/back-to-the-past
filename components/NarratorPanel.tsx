@@ -3,6 +3,7 @@
 import { useEffect, useCallback } from "react";
 import { useCompletion } from "ai/react";
 import type { FeatureDiff } from "@/lib/diff/diff-features";
+import { extractErrorMessage } from "@/lib/narrator/error-message";
 
 interface NarratorPanelProps {
   domain: string;
@@ -56,7 +57,7 @@ export default function NarratorPanel({ domain, diff }: NarratorPanelProps) {
 
         {error && (
           <span className="text-red-400 text-xs">
-            The narrator fell silent. ({error.message})
+            The narrator fell silent. ({extractErrorMessage(error.message)})
           </span>
         )}
 

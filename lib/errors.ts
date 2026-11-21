@@ -43,6 +43,26 @@ export class SnapshotNotFoundError extends Error {
   }
 }
 
+const MAX_ECHOED_PROVIDER_LENGTH = 50;
+
+export class NarratorNotConfiguredError extends Error {
+  readonly code = "NARRATOR_NOT_CONFIGURED";
+  constructor(provider: string, envVar: string) {
+    super(`Narrator is offline: ${envVar} is not configured for provider "${provider}".`);
+    this.name = "NarratorNotConfiguredError";
+  }
+}
+
+export class UnknownNarratorProviderError extends Error {
+  readonly code = "UNKNOWN_NARRATOR_PROVIDER";
+  constructor(provider: string, supported: string[]) {
+    // Truncated so a value pasted into NARRATOR_PROVIDER by mistake (e.g. a key) is not echoed in full.
+    const shown = provider.slice(0, MAX_ECHOED_PROVIDER_LENGTH);
+    super(`Unknown narrator provider: "${shown}". Supported providers: ${supported.join(", ")}.`);
+    this.name = "UnknownNarratorProviderError";
+  }
+}
+
 /** Map a typed error to an HTTP status code. */
 export function errorToStatus(err: unknown): number {
   if (err instanceof InvalidDomainError) return 400;
@@ -50,6 +70,8 @@ export function errorToStatus(err: unknown): number {
   if (err instanceof NoSnapshotsError) return 404;
   if (err instanceof SnapshotNotFoundError) return 404;
   if (err instanceof ArchiveUnavailableError) return 502;
+  if (err instanceof NarratorNotConfiguredError) return 503;
+  if (err instanceof UnknownNarratorProviderError) return 503;
   return 500;
 }
 
@@ -60,7 +82,9 @@ export function errorToJson(err: unknown): { error: string; code?: string } {
     err instanceof InvalidTimestampError ||
     err instanceof NoSnapshotsError ||
     err instanceof SnapshotNotFoundError ||
-    err instanceof ArchiveUnavailableError
+    err instanceof ArchiveUnavailableError ||
+    err instanceof NarratorNotConfiguredError ||
+    err instanceof UnknownNarratorProviderError
   ) {
     return { error: err.message, code: err.code };
   }

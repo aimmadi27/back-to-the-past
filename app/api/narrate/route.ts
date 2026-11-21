@@ -1,24 +1,37 @@
 import { NextRequest } from "next/server";
-import { anthropic } from "@ai-sdk/anthropic";
 import { streamText } from "ai";
 import { buildNarratorPrompt } from "@/lib/narrator/build-prompt";
 import { narrateBodySchema } from "@/lib/narrator/schema";
 import { rateLimiter } from "@/lib/narrator/rate-limit";
+import { getNarratorModel, NARRATOR_MAX_TOKENS } from "@/lib/narrator/model";
+import {
+  errorToJson,
+  errorToStatus,
+  NarratorNotConfiguredError,
+  UnknownNarratorProviderError,
+} from "@/lib/errors";
 
 /**
  * POST /api/narrate
  * Body: { diff: FeatureDiff, domain: string }
  *
- * Streams a spooky narrator response from Claude based on the structured diff.
+ * Streams a spooky narrator response from the configured LLM (see
+ * lib/narrator/model.ts) based on the structured diff.
  * One LLM call per request — no agents, no chains.
  */
 export async function POST(request: NextRequest) {
-  // Check API key up front — fail fast with a clear message
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return new Response(
-      JSON.stringify({ error: "Narrator is offline: ANTHROPIC_API_KEY is not configured." }),
-      { status: 503, headers: { "Content-Type": "application/json" } }
-    );
+  // Resolve the model up front — fail fast with a clear message
+  let narrator;
+  try {
+    narrator = getNarratorModel(process.env);
+  } catch (err) {
+    if (err instanceof NarratorNotConfiguredError || err instanceof UnknownNarratorProviderError) {
+      return new Response(JSON.stringify(errorToJson(err)), {
+        status: errorToStatus(err),
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    throw err;
   }
 
   // Per-IP rate limiting (10 req/min, in-memory)
@@ -49,13 +62,12 @@ export async function POST(request: NextRequest) {
   }
 
   const { diff, domain } = parsed.data;
-  const modelId = process.env.NARRATOR_MODEL ?? "claude-haiku-5-5";
   const prompt = buildNarratorPrompt(diff, domain);
 
   const result = streamText({
-    model: anthropic(modelId),
+    model: narrator.model,
     prompt,
-    maxTokens: 400,
+    maxTokens: NARRATOR_MAX_TOKENS,
     temperature: 0.8,
   });
 

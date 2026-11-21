@@ -9,7 +9,7 @@ inclusion: always
 - Next.js (App Router) + TypeScript (strict), deployed on Vercel
 - Tailwind CSS for styling
 - `cheerio` for server-side HTML parsing and rewriting
-- Vercel AI SDK for the narrator, streaming from a Claude model; API key from environment variables only
+- Vercel AI SDK for the narrator, streaming from Google Gemini by default; the provider is swappable through the provider registry in `lib/narrator/model.ts` (Anthropic is also registered); API keys from environment variables only
 - Vitest for unit tests
 
 ## Internet Archive
@@ -32,3 +32,4 @@ inclusion: always
 - One streaming LLM call per comparison — no agents.
 - Input is the structured diff (JSON), not raw HTML, to keep prompts small and grounded.
 - The prompt must instruct the model to only describe changes present in the diff.
+- Provider and model are chosen by `NARRATOR_PROVIDER` / `NARRATOR_MODEL`. Only `lib/narrator/model.ts` imports provider SDKs. Add a provider by adding one registry entry.

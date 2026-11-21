@@ -1,0 +1,113 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Install `@ai-sdk/google` 1.x and confirm export and option names": [
+      {
+        "executionId": "6e7b2e72-f75d-42e3-b548-f1ad716a2499",
+        "chatSessionId": "sess_cb2cff75-08df-40b9-a23c-356290e32d63",
+        "timestamp": 1795224684235
+      },
+      {
+        "executionId": "6e7b2e72-f75d-42e3-b548-f1ad716a2499",
+        "chatSessionId": "sess_cb2cff75-08df-40b9-a23c-356290e32d63",
+        "timestamp": 1795224689895
+      },
+      {
+        "executionId": "6e7b2e72-f75d-42e3-b548-f1ad716a2499",
+        "chatSessionId": "sess_cb2cff75-08df-40b9-a23c-356290e32d63",
+        "timestamp": 1795224720639
+      }
+    ],
+    "2.1 Add the two error classes and mapping in `lib/errors.ts`": [
+      {
+        "executionId": "6e7b2e72-f75d-42e3-b548-f1ad716a2499",
+        "chatSessionId": "sess_cb2cff75-08df-40b9-a23c-356290e32d63",
+        "timestamp": 1795224684321
+      }
+    ],
+    "2.2 Add error tests to `lib/errors.test.ts`": [
+      {
+        "executionId": "6e7b2e72-f75d-42e3-b548-f1ad716a2499",
+        "chatSessionId": "sess_cb2cff75-08df-40b9-a23c-356290e32d63",
+        "timestamp": 1795224684409
+      }
+    ],
+    "3.1 Create `lib/narrator/model.ts`": [
+      {
+        "executionId": "6e7b2e72-f75d-42e3-b548-f1ad716a2499",
+        "chatSessionId": "sess_cb2cff75-08df-40b9-a23c-356290e32d63",
+        "timestamp": 1795224684452
+      }
+    ],
+    "3.2 Create `lib/narrator/model.test.ts` covering every design case": [
+      {
+        "executionId": "6e7b2e72-f75d-42e3-b548-f1ad716a2499",
+        "chatSessionId": "sess_cb2cff75-08df-40b9-a23c-356290e32d63",
+        "timestamp": 1795224684493
+      }
+    ],
+    "4.1 Update `app/api/narrate/route.ts`": [
+      {
+        "executionId": "6e7b2e72-f75d-42e3-b548-f1ad716a2499",
+        "chatSessionId": "sess_cb2cff75-08df-40b9-a23c-356290e32d63",
+        "timestamp": 1795224684528
+      }
+    ],
+    "4.2 Verify the provider-SDK boundary and error display": [
+      {
+        "executionId": "6e7b2e72-f75d-42e3-b548-f1ad716a2499",
+        "chatSessionId": "sess_cb2cff75-08df-40b9-a23c-356290e32d63",
+        "timestamp": 1795224684567
+      }
+    ],
+    "5.1 Replace `.env.local.example` with the contents given in the design": [
+      {
+        "executionId": "6e7b2e72-f75d-42e3-b548-f1ad716a2499",
+        "chatSessionId": "sess_cb2cff75-08df-40b9-a23c-356290e32d63",
+        "timestamp": 1795224684626
+      }
+    ],
+    "5.2 Update `.kiro/steering/tech.md`": [
+      {
+        "executionId": "6e7b2e72-f75d-42e3-b548-f1ad716a2499",
+        "chatSessionId": "sess_cb2cff75-08df-40b9-a23c-356290e32d63",
+        "timestamp": 1795224684653
+      }
+    ],
+    "6. Checkpoint - Verify lint, tests, types and build": [
+      {
+        "executionId": "6e7b2e72-f75d-42e3-b548-f1ad716a2499",
+        "chatSessionId": "sess_cb2cff75-08df-40b9-a23c-356290e32d63",
+        "timestamp": 1795224685060
+      }
+    ],
+    "7.1 Run a real narration against Gemini (needs the user's real `GOOGLE_GENERATIVE_AI_API_KEY`; cannot be automated)": [
+      {
+        "executionId": "6e7b2e72-f75d-42e3-b548-f1ad716a2499",
+        "chatSessionId": "sess_cb2cff75-08df-40b9-a23c-356290e32d63",
+        "timestamp": 1795224685127
+      }
+    ],
+    "8.1 Add cross-references in `.kiro/specs/phase-1-time-travel/` docs": [
+      {
+        "executionId": "6e7b2e72-f75d-42e3-b548-f1ad716a2499",
+        "chatSessionId": "sess_cb2cff75-08df-40b9-a23c-356290e32d63",
+        "timestamp": 1795224685162
+      }
+    ],
+    "8.2 Update the test count in the Phase 1 `tasks.md`": [
+      {
+        "executionId": "6e7b2e72-f75d-42e3-b548-f1ad716a2499",
+        "chatSessionId": "sess_cb2cff75-08df-40b9-a23c-356290e32d63",
+        "timestamp": 1795224685194
+      }
+    ],
+    "9.1 Create branch `feat/narrator-llm-provider`, commit and push": [
+      {
+        "executionId": "6e7b2e72-f75d-42e3-b548-f1ad716a2499",
+        "chatSessionId": "sess_cb2cff75-08df-40b9-a23c-356290e32d63",
+        "timestamp": 1795224685227
+      }
+    ]
+  }
+}
